@@ -72,17 +72,17 @@ func ACKHandler(message structs.Message) {
 
 func commitDataHandler(message structs.Message) {
 	err := writeMutation(message.ChunkId, message.ChunkOffset, message.GenerateUid(), message.Ports[message.Pointer])
-	fmt.Println("ERROR :", err)
+	//fmt.Println("ERROR :", err)
 	if err != nil {
+		fmt.Println(err)
+	} else {
 		if message.Pointer == len(message.Ports)-1 {
 			message.Reply()
-			message.SetMessageType(helper.ACK_APPEND)
-			// } else {
+			message.SetMessageType(helper.ACK_COMMIT)
+			} else {
 			message.Forward()
 		}
-		// helper.SendMessage(message)
-	} else {
-		fmt.Println(err)
+		helper.SendMessage(message)
 	}
 }
 
@@ -113,7 +113,7 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 	if err != nil {
 		return errors.New("Error while seeking to UID " + uid)
 	}
-	fmt.Println(writeDataBytes)
+	//fmt.Println(writeDataBytes)
 	if _, err := fh.Write(writeDataBytes); err != nil {
 		fmt.Println(err)
 		return errors.New("Write Failed for UID " + uid)

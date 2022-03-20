@@ -93,7 +93,7 @@ func main(){
 	// create dummy data
 	metaData.fileIdToChunkId["test.txt"] = []string{"test_c0"}
 	metaData.chunkIdToChunkserver["test_c0"] = []int{8081, 8082, 8083}
-	offset := int64(5)
+	offset := int64(0)
 	metaData.chunkIdToOffset["test_c0"] = offset
 
 	go chunkServer.ChunkServer(1, 8081)
