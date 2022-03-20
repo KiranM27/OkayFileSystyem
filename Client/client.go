@@ -33,10 +33,10 @@ func messageHandler(context *gin.Context){
 	switch message.MessageType {
 	case helper.DATA_APPEND:
 		fmt.Println("Master gave a reply for append request")
-		go sendChunkAppend(message, true)
+		sendChunkAppend(message, true)
 	case helper.ACK_APPEND:
 		fmt.Println("Chunk gave a reply for append request")
-		go confirmWrite(message, true)
+		confirmWrite(message, true)
 	}
 }
 // Send a request to Master that client wants to append
