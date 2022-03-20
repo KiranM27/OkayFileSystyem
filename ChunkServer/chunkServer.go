@@ -1,18 +1,21 @@
 package main
 
 import (
-	"sync"
-	"github.com/gin-gonic/gin"
+	"errors"
+	"fmt"
+	"net/http"
 	helper "oks/Helper"
 	structs "oks/Structs"
-	"net/http"
-	"fmt"
+	"os"
 	"strconv"
+	"sync"
+	"path/filepath"
+	"github.com/gin-gonic/gin"
 )
 
 var (
-	buffer sync.Map 
-) 
+	buffer sync.Map
+)
 
 func landingPageHandler(context *gin.Context) {
 	context.IndentedJSON(http.StatusOK, "Welcome to the Okay File System ! This is a chunk server.")
@@ -26,30 +29,30 @@ func postMessageHandler(context *gin.Context) {
 		fmt.Println("Invalid message object received.")
 		return
 	}
-	context.IndentedJSON(http.StatusOK, message.MessageType + " Received")
+	context.IndentedJSON(http.StatusOK, message.MessageType+" Received")
 	fmt.Println("---------- Received Message: ", message.MessageType, " ----------")
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
 		appendMessageHandler(message)
 	case helper.ACK_APPEND:
-		appendACKHandler(message)
-	// case helper.DATA_COMMIT:
-	// 	commitDataHandler(message)
-	// case helper.ACK_COMMIT:
-	// 	commitACKHandler(message)
-	// case helper.CREATE_NEW_CHUNK:
-	// 	createNewChunkHandler(message)
-	// case helper.DATA_PAD:
-	// 	padHandler(message)
-	// case helper.ACK_PAD:
-	// 	padACKHandler(message)
+		ACKHandler(message)
+	case helper.DATA_COMMIT:
+		commitDataHandler(message)
+	case helper.ACK_COMMIT:
+		ACKHandler(message)
+		// case helper.CREATE_NEW_CHUNK:
+		// 	createNewChunkHandler(message)
+		// case helper.DATA_PAD:
+		// 	padHandler(message)
+		// case helper.ACK_PAD:
+		// 	padACKHandler(message)
 	}
 }
 
 func appendMessageHandler(message structs.Message) {
 	buffer.Store(message.GenerateUid(), message.Payload)
-	if message.Pointer == len(message.Ports) - 1 {
+	if message.Pointer == len(message.Ports)-1 {
 		message.Reply()
 		message.SetMessageType(helper.ACK_APPEND)
 	} else {
@@ -58,11 +61,52 @@ func appendMessageHandler(message structs.Message) {
 	helper.SendMessage(message)
 }
 
-func appendACKHandler(message structs.Message) {
+func ACKHandler(message structs.Message) {
 	if message.Pointer != 0 {
 		message.Reply()
 		helper.SendMessage(message)
 	}
+}
+
+func commitDataHandler(message structs.Message) {
+	err := writeMutation(message.ChunkId, message.ChunkOffset, message.GenerateUid(), message.Ports[message.Pointer])
+	fmt.Println("ERROR :", err)
+	if err != nil {
+		if message.Pointer == len(message.Ports)-1 {
+			message.Reply()
+			message.SetMessageType(helper.ACK_APPEND)
+		// } else {
+			message.Forward()
+		}
+		// helper.SendMessage(message)
+	} else {
+		fmt.Println(err)
+	}
+}
+
+func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
+	pwd, _ := os.Getwd()
+	dataDirPath := filepath.Join(pwd, "../" + helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath,  strconv.Itoa(currentPort))
+	chunkPath := filepath.Join(portDirPath,  chunkId)
+	fmt.Println(chunkPath)
+	fh, err := os.OpenFile(chunkPath,  os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer fh.Close()
+	// write data
+	writeData, ok := buffer.Load(uid)
+	if !ok {
+		return errors.New("No data in Buffer for UID " + uid)
+	}
+	writeDataBytes := []byte(writeData.(string))
+	fmt.Println(writeDataBytes)
+	if _, err := fh.WriteAt(writeDataBytes, chunkOffset); err != nil {
+		fmt.Println(err)
+		return errors.New("Write Failed for UID " + uid)
+	}
+	return nil
 }
 
 func listen(nodePid int, portNo int) {
@@ -74,23 +118,39 @@ func listen(nodePid int, portNo int) {
 	router.Run("localhost:" + strconv.Itoa(portNo))
 }
 
+func createChunk(portNo int, chunkId string) {
+	pwd, _ := os.Getwd()
+	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	helper.CreateFolder(dataDirPath)
+	portDataDirPath := filepath.Join(dataDirPath, strconv.Itoa(portNo))
+	helper.CreateFolder(portDataDirPath)
+	chunkPath := filepath.Join(portDataDirPath, chunkId+".txt")
+	helper.CreateFile(chunkPath)
+}
+
 func main() {
-	
-	go listen(1, 8001)
-	go listen(2, 8002)
-	go listen(3, 8003)
+
+	go listen(1, 8000)
+	// go listen(2, 8002)
+	// go listen(3, 8003)
+
+	buffer.Store("holahello0", "payload")
 
 	message := structs.Message{
-		MessageType: helper.DATA_APPEND,
-		Ports:       []int{8080, 8001, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
+		MessageType: helper.DATA_COMMIT,
+		Ports:       []int{8080, 8000, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
 		Pointer:     1,
 		Filename:    "hola",
 		ChunkId:     "hello",
-		Payload:     "paylaod",
+		Payload:     "payload",
 		PayloadSize: 7,
 		ChunkOffset: 0,
 	}
 
 	helper.SendMessage(message)
-	for {}
+
+	for {
+	}
+	// createChunk(8000, "hello")
+	
 }

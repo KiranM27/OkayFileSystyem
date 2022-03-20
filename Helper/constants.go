@@ -20,6 +20,8 @@ const (
 	ACK_PAD = "ACK_PAD" // master waiting for ACK PAD
 
 	CREATE_NEW_CHUNK = "CREATE_NEW_CHUNK" // ask the master to create a new chunk
+
+	DATA_DIR = "data"
 )
 
 var (
