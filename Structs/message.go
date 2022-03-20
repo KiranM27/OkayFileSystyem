@@ -13,7 +13,32 @@ type Message struct {
 	ChunkOffset int64 // Offset at which the data is to be written
 }
 
-func (message Message) generateUid() string {
+func (message Message) GenerateUid() string {
 	uid := message.Filename + message.ChunkId + strconv.Itoa(int(message.ChunkOffset))
 	return uid
 }
+
+func (message *Message) Forward()  {
+	message.Pointer += 1
+}
+
+func (message *Message) Reply()  {
+	message.Pointer -= 1
+}
+
+func (message *Message) SetMessageType(messageType string)  {
+	message.MessageType = messageType
+}
+
+func (message *Message) SetPorts(ports []int)  {
+	message.Ports = ports
+}
+
+func (message *Message) SetPayload(payload string)  {
+	message.Payload = payload
+}
+
+func (message *Message) SetChunkOffset(offset int64)  {
+	message.ChunkOffset = offset
+}
+
