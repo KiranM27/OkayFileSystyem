@@ -43,8 +43,10 @@ func postMessageHandler(context *gin.Context) {
 		go commitDataHandler(message)
 	case helper.ACK_COMMIT:
 		go ACKHandler(message)
-		// case helper.CREATE_NEW_CHUNK:
-		// 	createNewChunkHandler(message)
+	case helper.CREATE_NEW_CHUNK:
+		createNewChunkHandler(message)
+	case helper.ACK_CHUNK_CREATE:
+		go ACKHandler(message)
 		// case helper.DATA_PAD:
 		// 	padHandler(message)
 		// case helper.ACK_PAD:
@@ -84,6 +86,17 @@ func commitDataHandler(message structs.Message) {
 		}
 		helper.SendMessage(message)
 	}
+}
+
+func createNewChunkHandler(message structs.Message) {
+	createChunk(message.Ports[message.Pointer], message.ChunkId)
+	if message.Pointer == len(message.Ports)-1 {
+		message.Reply()
+		message.SetMessageType(helper.ACK_CHUNK_CREATE)
+	} else {
+		message.Forward()
+	}
+	helper.SendMessage(message)
 }
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
