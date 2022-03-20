@@ -37,13 +37,13 @@ func messageHandler(context *gin.Context) {
 	switch message.MessageType {
 	case helper.DATA_APPEND:
 		fmt.Println("Master gave a reply for append request")
-		go sendChunkAppend(message, true, context)
+		go sendChunkAppend(message)
 	case helper.ACK_APPEND:
 		fmt.Println("Chunk gave a reply for append request")
-		go confirmWrite(message, true, context)
+		go confirmWrite(message)
 	case helper.ACK_COMMIT:
 		fmt.Println("Chunk gave reply for commit request")
-		go finishAppend(message,context)
+		go finishAppend(message)
 	}
 }
 
@@ -109,8 +109,12 @@ func runTimer(message structs.Message){
 		timer.Reset(5 *  time.Second) 
 		select{
 		case <- timer.C:
+			// ACKMap.Range(func(k, v interface{}) bool {
+			// 	fmt.Println("range (): ", k, v)
+			// 	return true
+			// })	
 			_, locked:= ACKMap.Load(int(message.RecordIndex))
-			fmt.Println(locked)
+			// fmt.Println(locked)
 			if locked{
 				fmt.Println("Timeout, resending message")
 				helper.SendMessage(message)
@@ -124,7 +128,7 @@ func runTimer(message structs.Message){
 
 
 // Send append request to primary chunk server and wait
-func sendChunkAppend(message structs.Message, tryAgain bool, context *gin.Context) {
+func sendChunkAppend(message structs.Message) {
 	fmt.Println("Processing append request to primary chunk server")
 
 	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
@@ -140,7 +144,7 @@ func sendChunkAppend(message structs.Message, tryAgain bool, context *gin.Contex
 }
 
 // Confirm write to the chunk servers
-func confirmWrite(message structs.Message, tryAgain bool, context *gin.Context) {
+func confirmWrite(message structs.Message) {
 	fmt.Println("Confirming write request to primary chunk server")
 	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
 	message.Forward()
@@ -151,8 +155,8 @@ func confirmWrite(message structs.Message, tryAgain bool, context *gin.Context) 
 	helper.SendMessage(message)
 }
 
-func finishAppend(message structs.Message, context *gin.Context){
-	ACKMap.Delete(message.RecordIndex)
+func finishAppend(message structs.Message){
+	ACKMap.Delete(int(message.RecordIndex))
 }
 
 func InitClient(id int,portNumber int){
