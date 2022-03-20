@@ -84,12 +84,14 @@ func newFileAppend(message structs.Message) {
 	// ask 3 chunkserver to create chunks
 	fmt.Println("Master choosing 3 chunkservers")
 	new_chunkServer := choose_3_random_chunkServers()
+	messagePorts := message.Ports // [C, M]
+	messagePorts = append(messagePorts, new_chunkServer...)
 
 	message1 := structs.Message{
 		MessageType: helper.CREATE_NEW_CHUNK,
 		// master, primary, secondary_1, secondary_2
-		Ports:       []int{port_map.portToInt["0"], new_chunkServer[0], new_chunkServer[1], new_chunkServer[2]},
-		Pointer:     1,
+		Ports:       messagePorts, // [C, M, P, S1, S2]
+		Pointer:     2,
 		Filename:    message.Filename,
 		ChunkId:     chunkId,
 		Payload:     message.Payload,
@@ -103,9 +105,12 @@ func newFileAppend(message structs.Message) {
 
 // after receiving ack from primary, approve request for client
 func ackChunkCreate(message structs.Message) {
+	messagePorts := message.Ports                                      // [C, M, P, S1, S2]
+	messagePorts = append([]int{messagePorts[0]}, messagePorts[2:]...) //[C, P, S1, S2]
+
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
-		Ports:       append([]int{port_map.portToInt["6"]}, message.Ports[1:]...),
+		Ports:       messagePorts, // [C, P, S1, S2]
 		Pointer:     0,
 		Filename:    message.Filename,
 		ChunkId:     message.ChunkId,
@@ -162,7 +167,7 @@ func main() {
 	metaData.fileIdToChunkId = make(map[string][]string)
 	metaData.chunkIdToChunkserver = make(map[string][]int)
 	metaData.chunkIdToOffset = make(map[string]int64)
-	port_map.portToInt = map[string]int{"0": 8080, "1": 8081, "2": 8082, "3": 8083, "4": 8084, "5": 8085, "6": 8086}
+	port_map.portToInt = map[string]int{"0": 8080, "1": 8081, "2": 8082, "3": 8083, "4": 8084, "5": 8085}
 
 	// create dummy data
 	// metaData.fileIdToChunkId["test.txt"] = []string{"test_c0"}
