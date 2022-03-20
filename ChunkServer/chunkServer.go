@@ -88,7 +88,7 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 	pwd, _ := os.Getwd()
 	dataDirPath := filepath.Join(pwd, "../" + helper.DATA_DIR)
 	portDirPath := filepath.Join(dataDirPath,  strconv.Itoa(currentPort))
-	chunkPath := filepath.Join(portDirPath,  chunkId)
+	chunkPath := filepath.Join(portDirPath,  chunkId+".txt")
 	fmt.Println(chunkPath)
 	fh, err := os.OpenFile(chunkPath,  os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	if err != nil {
@@ -144,13 +144,13 @@ func main() {
 		ChunkId:     "hello",
 		Payload:     "payload",
 		PayloadSize: 7,
-		ChunkOffset: 0,
+		ChunkOffset: 2,
 	}
 
 	helper.SendMessage(message)
 
 	for {
 	}
-	// createChunk(8000, "hello")
+	 createChunk(8000, "hello")
 	
 }
