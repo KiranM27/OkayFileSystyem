@@ -70,9 +70,36 @@ func appendMessageHandler(message structs.Message) {
 		fmt.Println("Master received new file from Client")
 		newFileAppend(message)
 	} else {
-		fmt.Println("CHUNK IS NOT NEW")
+		// if file is not new
+		fmt.Println("Master received old file from Client")
+		fileNotNew(message)
+		
 	}
+}
 
+func fileNotNew(message structs.Message){
+	//create message to send to client
+
+	messagePorts := message.Ports // [C, M]
+	messagePorts = append([]int{messagePorts[0]}, metaData.chunkIdToChunkserver[message.ChunkId]...)
+	// [C, P, S1, S2]
+
+	message1 := structs.Message{
+		MessageType: helper.DATA_APPEND,
+		// master, primary, secondary_1, secondary_2
+		Ports:       messagePorts, // [C, P, S1, S2]
+		Pointer:     0,
+		Filename:    message.Filename,
+		ChunkId:     message.ChunkId,
+		Payload:     message.Payload,
+		PayloadSize: message.PayloadSize,
+		ChunkOffset: metaData.chunkIdToOffset[message.ChunkId],
+	}
+	fmt.Println("Master sending request to primary chunkserver")
+	helper.SendMessage(message1)
+
+	// increment offset
+	metaData.chunkIdToOffset[message.ChunkId] += message1.PayloadSize
 }
 
 // Client wants to append to a new file
@@ -120,6 +147,9 @@ func ackChunkCreate(message structs.Message) {
 	}
 	fmt.Println("Master approving append request to client")
 	helper.SendMessage(message1)
+
+	//record in metaData
+	metaData.chunkIdToChunkserver[message.ChunkId] = messagePorts[2:]
 
 	// increment offset
 	new_offset := 0 + message1.PayloadSize
