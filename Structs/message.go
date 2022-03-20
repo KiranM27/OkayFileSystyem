@@ -25,3 +25,20 @@ func (message *Message) Forward()  {
 func (message *Message) Reply()  {
 	message.Pointer -= 1
 }
+
+func (message *Message) SetMessageType(messageType string)  {
+	message.MessageType = messageType
+}
+
+func (message *Message) SetPorts(ports []int)  {
+	message.Ports = ports
+}
+
+func (message *Message) SetPayload(payload string)  {
+	message.Payload = payload
+}
+
+func (message *Message) SetChunkOffset(offset int64)  {
+	message.ChunkOffset = offset
+}
+
