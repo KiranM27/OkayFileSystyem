@@ -32,8 +32,10 @@ func messageHandler(context *gin.Context){
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
+		fmt.Println("Master gave a reply for append request")
 		go sendChunkAppend(message, true)
 	case helper.ACK_APPEND:
+		fmt.Println("Chunk gave a reply for append request")
 		go confirmWrite(message, true)
 	}
 }
@@ -63,6 +65,7 @@ func requestMasterAppend(clientPort int, filename string) {
 	
 		}
 		// HTTP Request to Master
+		fmt.Println(message)
 		fmt.Println("Sending append request to Master")
 		helper.SendMessage(message)
 	} else{
@@ -81,7 +84,7 @@ func requestMasterAppend(clientPort int, filename string) {
 				PayloadSize: smallFileSize,
 		
 			}
-  
+			fmt.Println(message)
 			// HTTP Request to Master
 			fmt.Println("Sending append request to Master")
 			helper.SendMessage(message)
