@@ -2,14 +2,15 @@ package client
 
 import (
 	//"os"
-	"time"
 	"fmt"
-	"strconv"
 	"net/http"
 	"github.com/gin-gonic/gin"
 	"sync"
 	structs "oks/Structs"
 	helper "oks/Helper"
+	"strconv"
+	"time"
+
 )
 
 var ACKMap sync.Map
@@ -22,7 +23,7 @@ func listen(id int, portNumber int){
 	router.Run("localhost:" + strconv.Itoa(portNumber))
 }
 
-func messageHandler(context *gin.Context){
+func messageHandler(context *gin.Context) {
 
 	var message structs.Message
 	//var replyHere chan[]bool
@@ -45,6 +46,7 @@ func messageHandler(context *gin.Context){
 		go finishAppend(message,context)
 	}
 }
+
 // Send a request to Master that client wants to append
 func requestMasterAppend(clientPort int, filename string) {
 	var numChunks uint64
@@ -53,9 +55,9 @@ func requestMasterAppend(clientPort int, filename string) {
 	fileByteSize := getFileSize(filename)
 
 	// Check byte size of file, if more than 2.5kb split
-	if(fileByteSize > 2500){
+	if fileByteSize > 2500 {
 		numChunks = splitFile(filename)
-	} else{
+	} else {
 		numChunks = 1
 	}
 
@@ -77,7 +79,7 @@ func requestMasterAppend(clientPort int, filename string) {
 		go runTimer(message)
 	} else{
 		filePrefix := removeExtension(filename)
-		for i := uint64(0); i < numChunks; i++{
+		for i := uint64(0); i < numChunks; i++ {
 			smallFileName := filePrefix + strconv.FormatUint(i, 10) + ".txt"
 			smallFileSize := getFileSize(smallFileName)
 			fmt.Println(smallFileName) // debug
@@ -122,8 +124,8 @@ func runTimer(message structs.Message){
 
 
 // Send append request to primary chunk server and wait
-func sendChunkAppend(message structs.Message, tryAgain bool, context *gin.Context){
-	fmt.Println("Processing append request to primary chunk server") 
+func sendChunkAppend(message structs.Message, tryAgain bool, context *gin.Context) {
+	fmt.Println("Processing append request to primary chunk server")
 
 	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
 	message.Forward()
@@ -131,13 +133,15 @@ func sendChunkAppend(message structs.Message, tryAgain bool, context *gin.Contex
 
 	// HTTP Request to Primary Chunk
 	fmt.Println("Sending append request to Primary Chunk Server")
+	fmt.Println(message.Pointer, message.Ports)
 	//success := SendTimerMessage(message)
 	helper.SendMessage(message)
 
 }
+
 // Confirm write to the chunk servers
-func confirmWrite(message structs.Message,	tryAgain bool, context *gin.Context){
-	fmt.Println("Confirming write request to primary chunk server") 
+func confirmWrite(message structs.Message, tryAgain bool, context *gin.Context) {
+	fmt.Println("Confirming write request to primary chunk server")
 	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
 	message.Forward()
 	message.MessageType = helper.DATA_COMMIT
