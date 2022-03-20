@@ -73,15 +73,15 @@ func appendMessageHandler(message structs.Message) {
 		// if file is not new
 		fmt.Println("Master received old file from Client")
 		fileNotNew(message)
-		
+
 	}
 }
 
-func fileNotNew(message structs.Message){
+func fileNotNew(message structs.Message) {
 	//create message to send to client
-
+	chunkId := metaData.fileIdToChunkId[message.Filename][len(metaData.fileIdToChunkId[message.Filename]) - 1]
 	messagePorts := message.Ports // [C, M]
-	messagePorts = append([]int{messagePorts[0]}, metaData.chunkIdToChunkserver[message.ChunkId]...)
+	messagePorts = append([]int{messagePorts[0]}, metaData.chunkIdToChunkserver[chunkId]...)
 	// [C, P, S1, S2]
 
 	message1 := structs.Message{
@@ -90,16 +90,16 @@ func fileNotNew(message structs.Message){
 		Ports:       messagePorts, // [C, P, S1, S2]
 		Pointer:     0,
 		Filename:    message.Filename,
-		ChunkId:     message.ChunkId,
+		ChunkId:     chunkId,
 		Payload:     message.Payload,
 		PayloadSize: message.PayloadSize,
-		ChunkOffset: metaData.chunkIdToOffset[message.ChunkId],
+		ChunkOffset: metaData.chunkIdToOffset[chunkId],
 	}
 	fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
 
 	// increment offset
-	metaData.chunkIdToOffset[message.ChunkId] += message1.PayloadSize
+	metaData.chunkIdToOffset[chunkId] += message1.PayloadSize
 }
 
 // Client wants to append to a new file
@@ -133,7 +133,11 @@ func newFileAppend(message structs.Message) {
 // after receiving ack from primary, approve request for client
 func ackChunkCreate(message structs.Message) {
 	messagePorts := message.Ports                                      // [C, M, P, S1, S2]
+	fmt.Println("[C, M, P, S1, S2]", messagePorts)
 	messagePorts = append([]int{messagePorts[0]}, messagePorts[2:]...) //[C, P, S1, S2]
+	fmt.Println("CHUNK CREATED - PRIOR UPDATING PORTS [C, P, S1, S2]", messagePorts)
+	chunkServers := messagePorts[1:]
+	fmt.Println(chunkServers)
 
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
@@ -149,7 +153,8 @@ func ackChunkCreate(message structs.Message) {
 	helper.SendMessage(message1)
 
 	//record in metaData
-	metaData.chunkIdToChunkserver[message.ChunkId] = messagePorts[2:]
+	metaData.chunkIdToChunkserver[message.ChunkId] = chunkServers
+	fmt.Println(metaData.chunkIdToChunkserver[message.ChunkId])
 
 	// increment offset
 	new_offset := 0 + message1.PayloadSize
