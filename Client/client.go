@@ -141,9 +141,8 @@ func confirmWrite(message structs.Message,	tryAgain bool){
 }
 
 
-
-
-
 func InitClient(id int,portNumber int){
 	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
+	go listen(id, portNumber)
+	requestMasterAppend(portNumber, "test.txt")
 }
