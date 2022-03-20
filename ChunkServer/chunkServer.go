@@ -177,6 +177,17 @@ func ChunkServer(nodePid int, portNo int) {
 	// 	Pointer:     1,
 	// 	Filename:    "hola",
 	// 	ChunkId:     "hello",
+	// 	Payload:     "payload",
+	// 	PayloadSize: 7,
+	// 	ChunkOffset: 2,
+	// }
+
+	// message := structs.Message{
+	// 	MessageType: helper.DATA_COMMIT,
+	// 	Ports:       []int{8080, 8000, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
+	// 	Pointer:     1,
+	// 	Filename:    "hola",
+	// 	ChunkId:     "hello",
 	// 	Payload:     "fuckgo",
 	// 	PayloadSize: 8,
 	// 	ChunkOffset: 9,
