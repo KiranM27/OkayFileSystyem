@@ -11,6 +11,7 @@ type Message struct {
 	Payload     string
 	PayloadSize int64
 	ChunkOffset int64 // Offset at which the data is to be written
+	RecordIndex	uint64 // contains the index of the Timeout Indicator (ACKMap) in Client
 }
 
 func (message Message) GenerateUid() string {
