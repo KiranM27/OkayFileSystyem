@@ -33,10 +33,10 @@ func messageHandler(context *gin.Context){
 	switch message.MessageType {
 	case helper.DATA_APPEND:
 		fmt.Println("Master gave a reply for append request")
-		sendChunkAppend(message, true, context)
+		go sendChunkAppend(message, true, context)
 	case helper.ACK_APPEND:
 		fmt.Println("Chunk gave a reply for append request")
-		confirmWrite(message, true, context)
+		go confirmWrite(message, true, context)
 	}
 }
 // Send a request to Master that client wants to append
@@ -68,6 +68,8 @@ func requestMasterAppend(clientPort int, filename string) {
 		fmt.Println(message)
 		fmt.Println("Sending append request to Master")
 		helper.SendMessage(message)
+		fmt.Println("Finished sending append request to Master")
+
 	} else{
 		filePrefix := removeExtension(filename)
 		for i := uint64(0); i < numChunks; i++{
@@ -183,4 +185,7 @@ func InitClient(id int,portNumber int){
 	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
 	go listen(id, portNumber)
 	requestMasterAppend(portNumber, "test.txt")
+	for{
+		
+	}
 }

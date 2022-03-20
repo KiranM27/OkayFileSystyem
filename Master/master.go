@@ -57,7 +57,7 @@ func postMessageHandler(context *gin.Context) {
 
 	switch message.MessageType{
 		case helper.DATA_APPEND:
-			appendMessageHandler(message)
+			go appendMessageHandler(message)
 	}
 }
 
@@ -96,9 +96,9 @@ func main(){
 	offset := int64(5)
 	metaData.chunkIdToOffset["test_c0"] = offset
 
-	go ChunkServer(1, 8081)
-	go ChunkServer(2, 8082)
-	go ChunkServer(3, 8083)
+	go chunkServer.ChunkServer(1, 8081)
+	go chunkServer.ChunkServer(2, 8082)
+	go chunkServer.ChunkServer(3, 8083)
 	listen(0, 8080)
 	
 }
