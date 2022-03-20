@@ -62,6 +62,7 @@ func postMessageHandler(context *gin.Context) {
 }
 
 func appendMessageHandler(message structs.Message){
+	fmt.Println("Before Sending")
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
 		Ports: []int{port_map.portToInt["6"], port_map.portToInt["1"], port_map.portToInt["2"], port_map.portToInt["3"]},
@@ -72,6 +73,7 @@ func appendMessageHandler(message structs.Message){
 		PayloadSize: message.PayloadSize,
 		ChunkOffset: metaData.chunkIdToOffset[metaData.fileIdToChunkId[message.Filename][0]],
 	}
+	fmt.Println("Master replying append request to client")
 	helper.SendMessage(message1)
 
 	// increment offset
@@ -96,5 +98,8 @@ func main(){
 
 	go listen(1,8080)
 	client.InitClient(7,8086)
+
+	go listen(1, 8080)
+	client.InitClient(7, 8086)
 
 }
