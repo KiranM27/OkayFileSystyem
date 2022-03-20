@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"github.com/gin-gonic/gin"
-	client "oks/Client"
+	//client "oks/Client"
 	helper "oks/Helper"
 	structs "oks/Structs"
-	//chunk "oks/ChunkServer"
+	chunkServer "oks/ChunkServer"
 	"strconv"
 	)
 
@@ -57,7 +57,7 @@ func postMessageHandler(context *gin.Context) {
 
 	switch message.MessageType{
 		case helper.DATA_APPEND:
-			appendMessageHandler(message)
+			go appendMessageHandler(message)
 	}
 }
 
@@ -91,12 +91,14 @@ func main(){
 	port_map.portToInt = map[string]int{"0":  8080, "1": 8081, "2": 8082, "3": 8083, "4": 8084, "5": 8085, "6": 8086}
 
 	// create dummy data
-	metaData.fileIdToChunkId["test.txt"] = []string{"test.txt_c0"}
-	metaData.chunkIdToChunkserver["test.txt_c0"] = []int{8081, 8082, 8083}
-	offset := int64(5)
-	metaData.chunkIdToOffset["test.txt_c0"] = offset
+	metaData.fileIdToChunkId["test.txt"] = []string{"test_c0"}
+	metaData.chunkIdToChunkserver["test_c0"] = []int{8081, 8082, 8083}
+	offset := int64(0)
+	metaData.chunkIdToOffset["test_c0"] = offset
 
-	go listen(1, 8079)
-	client.InitClient(7, 8086)
-
+	go chunkServer.ChunkServer(1, 8081)
+	go chunkServer.ChunkServer(2, 8082)
+	go chunkServer.ChunkServer(3, 8083)
+	listen(0, 8080)
+	
 }
