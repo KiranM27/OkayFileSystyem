@@ -9,6 +9,8 @@ import (
 	structs "oks/Structs"
 	chunkServer "oks/ChunkServer"
 	"strconv"
+	"reflect"
+	"math/rand"
 	)
 
 var metaData MetaData
@@ -42,9 +44,6 @@ func listen(nodePid int, portNo int) {
 	router.Run("localhost:" + strconv.Itoa(portNo))
 }
 
-
-
-
 func postMessageHandler(context *gin.Context) {
 	var message structs.Message
 
@@ -58,30 +57,123 @@ func postMessageHandler(context *gin.Context) {
 	switch message.MessageType{
 		case helper.DATA_APPEND:
 			go appendMessageHandler(message)
+		case helper.ACK_CHUNK_CREATE:
+			go ackChunkCreate(message)
 	}
 }
 
 func appendMessageHandler(message structs.Message){
 	fmt.Println("Before Sending")
-	message1 := structs.Message{
-		MessageType: helper.DATA_APPEND,
-		Ports: []int{port_map.portToInt["6"], port_map.portToInt["1"], port_map.portToInt["2"], port_map.portToInt["3"]},
-		Pointer: 0,
-		Filename: message.Filename,
-		ChunkId: metaData.fileIdToChunkId[message.Filename][0],
-		Payload: message.Payload,
-		PayloadSize: message.PayloadSize,
-		ChunkOffset: metaData.chunkIdToOffset[metaData.fileIdToChunkId[message.Filename][0]],
-	}
-	fmt.Println("Master replying append request to client")
-	helper.SendMessage(message1)
+	if _, ok := metaData.fileIdToChunkId[message.Filename]; ok {
+		// if file does not exist in metaData, create a new entry
+		if ok == false {
+		  fmt.Println("Master received new file from Client")
+		  newFileAppend(message) 
+		}
+	
+	// message1 := structs.Message{
+	// 	MessageType: helper.DATA_APPEND,
+	// 	Ports: []int{port_map.portToInt["6"], port_map.portToInt["1"], port_map.portToInt["2"], port_map.portToInt["3"]},
+	// 	Pointer: 0,
+	// 	Filename: message.Filename,
+	// 	ChunkId: metaData.fileIdToChunkId[message.Filename][0],
+	// 	Payload: message.Payload,
+	// 	PayloadSize: message.PayloadSize,
+	// 	ChunkOffset: metaData.chunkIdToOffset[metaData.fileIdToChunkId[message.Filename][0]],
+	// }
+	// fmt.Println("Master replying append request to client")
+	// helper.SendMessage(message1)
 
-	// increment offset
-	new_offset := message1.ChunkOffset + message1.PayloadSize
-	metaData.chunkIdToOffset[metaData.fileIdToChunkId[message.Filename][0]] = new_offset
+	// // increment offset
+	// new_offset := message1.ChunkOffset + message1.PayloadSize
+	// metaData.chunkIdToOffset[metaData.fileIdToChunkId[message.Filename][0]] = new_offset
+
+	}
 
 }
 
+// Client wants to append to a new file
+func newFileAppend(message structs.Message){
+	// create new entry in MetaData
+	chunkId := message.Filename + "_c0"
+	metaData.fileIdToChunkId[message.Filename] = []string{chunkId}
+  
+	// ask 3 chunkserver to create chunks
+	fmt.Println("Master choosing 3 chunkservers")
+	new_chunkServer := choose_3_random_chunkServers()
+	
+	message1 := structs.Message{
+		MessageType: helper.CREATE_NEW_CHUNK,
+		// master, primary, secondary_1, secondary_2
+		Ports: []int{port_map.portToInt["0"], new_chunkServer[0], new_chunkServer[1], new_chunkServer[2]},
+		Pointer: 1,
+		Filename: message.Filename,
+		ChunkId: chunkId,
+		Payload: message.Payload,
+		PayloadSize: message.PayloadSize,
+		ChunkOffset: 0,
+	}
+	fmt.Println("Master sending request to primary chunkserver")
+	helper.SendMessage(message1)
+	
+  }
+
+// after receiving ack from primary, approve request for client
+func ackChunkCreate(message structs.Message){
+	message1 := structs.Message{
+		MessageType: helper.DATA_APPEND,
+		Ports: append([]int{port_map.portToInt["6"]}, message.Ports[1:]...),
+		Pointer: 0,
+		Filename: message.Filename,
+		ChunkId: message.ChunkId,
+		Payload: message.Payload,
+		PayloadSize: message.PayloadSize,
+		ChunkOffset: 0,
+	}
+	fmt.Println("Master approving append request to client")
+	helper.SendMessage(message1)
+
+	// increment offset
+	new_offset := 0 + message1.PayloadSize
+	metaData.chunkIdToOffset[message.ChunkId] = new_offset
+}
+
+func choose_3_random_chunkServers() []int {
+
+	chunkServerArray := map[int]bool{
+		8081 : false,
+		8082 : false,
+		8083 : false,
+		8084 : false,
+		8085 : false,
+	  }
+
+	res := []int{}
+  
+	for len(res) < 3 {
+	  //random key stores the key from the chunkS
+	  random_key := MapRandomKeyGet(chunkServerArray).(int)
+	  // checking if this key boolean is false or true, if false append this key to the res and set the key value true instead
+	  if chunkServerArray[random_key] == false {
+		chunkServerArray[random_key] = true
+		res = append(res, random_key)
+		fmt.Println(res)
+  
+	  } else {
+		//if the chunkS[random_key]==true, it means that the random key has been added into the res array
+		continue
+	  }
+	}
+	return res
+  
+  }
+  
+//this will select random keys in the map
+func MapRandomKeyGet(mapI interface{}) interface{} {
+keys := reflect.ValueOf(mapI).MapKeys()
+
+return keys[rand.Intn(len(keys))].Interface()
+}
 
 
 func main(){
