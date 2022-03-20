@@ -39,6 +39,11 @@ type Port struct {
 
 func listen(nodePid int, portNo int) {
 	router := gin.Default()
+	// router.Use(gin.CustomRecovery(func (c *gin.Context, recovered interface{}){
+	// 	if err, ok := recovered.(string); ok {
+	// 		c.String(http.StatusInternalServerError, fmt.Sprintf("error: %s", err))
+	// 	}
+	// }))
 	router.POST("/message", postMessageHandler)
 
 	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)
@@ -177,7 +182,7 @@ func main() {
 
 	go chunkServer.ChunkServer(1, 8081)
 	go chunkServer.ChunkServer(2, 8082)
-	go chunkServer.ChunkServer(3, 8083)
+	//go chunkServer.ChunkServer(3, 8083)
 	go chunkServer.ChunkServer(4, 8084)
 	go chunkServer.ChunkServer(5, 8085)
 	listen(0, 8080)

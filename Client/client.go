@@ -70,14 +70,11 @@ func requestMasterAppend(clientPort int, filename string) {
 			PayloadSize: fileByteSize,
 			RecordIndex: uint64(0),
 		}
-		ACKMap.Store(message.RecordIndex,true)
+		ACKMap.Store(int(message.RecordIndex),true)
 		// HTTP Request to Master
-		fmt.Println(message)
 		fmt.Println("Sending append request to Master")
 		helper.SendMessage(message)
 		go runTimer(message)
-		fmt.Println("Finished sending append request to Master")
-
 	} else{
 		filePrefix := removeExtension(filename)
 		for i := uint64(0); i < numChunks; i++{
@@ -94,27 +91,28 @@ func requestMasterAppend(clientPort int, filename string) {
 				PayloadSize: smallFileSize,
 				RecordIndex: i,
 			}
-			ACKMap.Store(message.RecordIndex,true)
-			fmt.Println(message)
+			ACKMap.Store(int(message.RecordIndex),true)
 			// HTTP Request to Master
 			fmt.Println("Sending append request to Master")
 			helper.SendMessage(message)
 			go runTimer(message)
 		}
+		
 	}
 }
 
 func runTimer(message structs.Message){
 	timer := time.NewTimer(3 * time.Second) 
 	for {
-		timer.Reset(15 *  time.Second) 
+		timer.Reset(5 *  time.Second) 
 		select{
 		case <- timer.C:
-			locked, _ := ACKMap.Load(message.RecordIndex)
-			if locked.(bool) {
+			_, locked:= ACKMap.Load(int(message.RecordIndex))
+			fmt.Println(locked)
+			if locked{
 				fmt.Println("Timeout, resending message")
 				helper.SendMessage(message)
-			} else{
+			} else {
 				return
 			}
 		}
@@ -136,21 +134,6 @@ func sendChunkAppend(message structs.Message, tryAgain bool, context *gin.Contex
 	//success := SendTimerMessage(message)
 	helper.SendMessage(message)
 
-	// // If timed out and can try again, run sendChunkAppend again
-	// if (!success && tryAgain){
-	// 	//message.Pointer -= 1 // decrement the pointer
-	// 	message.Reply()
-	// 	sendChunkAppend(message, false, context)
-	// } else if (!success && !tryAgain){ 
-	// 	// if failed and cannot try again,
-	// 	fmt.Println("Append has failed, restart entire process later")
-	// 	time.Sleep(time.Second * 30) // simulate pause
-	// 	requestMasterAppend(message.Ports[0], message.Filename)
-
-	// } else{ // success either case
-	// 	fmt.Println("Append succeeded, proceed to confirm write")
-	// 	// there should be a function here
-	// }
 }
 // Confirm write to the chunk servers
 func confirmWrite(message structs.Message,	tryAgain bool, context *gin.Context){
@@ -162,21 +145,6 @@ func confirmWrite(message structs.Message,	tryAgain bool, context *gin.Context){
 	// HTTP Request to Primary Chunk
 	fmt.Println("Sending append request to Primary Chunk Server")
 	helper.SendMessage(message)
-
-	// // If timed out and can try again, run confirmWrite again
-	// if (!success && tryAgain){
-	// 	//message.Pointer -= 1 // decrement the pointer
-	// 	message.Reply()
-	// 	confirmWrite(message, false, context)
-	// } else if (!success && !tryAgain){ 
-	// 	// if failed and cannot try again,
-	// 	fmt.Println("Write has failed, restart entire process later")
-	// 	time.Sleep(time.Second * 30) // simulate pause
-	// 	requestMasterAppend(message.Ports[0], message.Filename)
-
-	// } else{ // success either case
-	// 	fmt.Println("Write succeeded, Client successfully appended")
-	// }
 }
 
 func finishAppend(message structs.Message, context *gin.Context){
