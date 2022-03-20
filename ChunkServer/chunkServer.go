@@ -1,4 +1,4 @@
-package main
+package chunkServer
 
 import (
 	"errors"
@@ -36,13 +36,13 @@ func postMessageHandler(context *gin.Context) {
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
-		appendMessageHandler(message)
+		go appendMessageHandler(message)
 	case helper.ACK_APPEND:
-		ACKHandler(message)
+		go ACKHandler(message)
 	case helper.DATA_COMMIT:
-		commitDataHandler(message)
+		go commitDataHandler(message)
 	case helper.ACK_COMMIT:
-		ACKHandler(message)
+		go ACKHandler(message)
 		// case helper.CREATE_NEW_CHUNK:
 		// 	createNewChunkHandler(message)
 		// case helper.DATA_PAD:
@@ -140,29 +140,39 @@ func createChunk(portNo int, chunkId string) {
 	helper.CreateFile(chunkPath)
 }
 
-func main() {
+func testCreateChunk() {
+	createChunk(8081, "test_c0")
+	createChunk(8082, "test_c0")
+	createChunk(8083, "test_c0")
+}
 
-	go listen(1, 8000)
+func ChunkServer(nodePid int, portNo int) {
+	go listen(nodePid, portNo)
+}
+
+// func main() {
+
+	// go listen(1, 8000)
 	// go listen(2, 8002)
 	// go listen(3, 8003)
 
-	buffer.Store("holahello9", "fuckgo")
+	// buffer.Store("holahello9", "fuckgo")
 
-	message := structs.Message{
-		MessageType: helper.DATA_COMMIT,
-		Ports:       []int{8080, 8000, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
-		Pointer:     1,
-		Filename:    "hola",
-		ChunkId:     "hello",
-		Payload:     "fuckgo",
-		PayloadSize: 8,
-		ChunkOffset: 9,
-	}
+	// message := structs.Message{
+	// 	MessageType: helper.DATA_COMMIT,
+	// 	Ports:       []int{8080, 8000, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
+	// 	Pointer:     1,
+	// 	Filename:    "hola",
+	// 	ChunkId:     "hello",
+	// 	Payload:     "fuckgo",
+	// 	PayloadSize: 8,
+	// 	ChunkOffset: 9,
+	// }
 
-	helper.SendMessage(message)
+	// helper.SendMessage(message)
 
-	for {
-	}
-	// createChunk(8000, "hello")
+	// for {
+	// }
+	// testCreateChunk()
 
-}
+// }

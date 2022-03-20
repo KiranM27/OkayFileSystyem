@@ -92,27 +92,27 @@ func requestMasterAppend(clientPort int, filename string) {
 	}
 }
 
-// Check post route for the message along with timeout
-func timeoutCheck(context *gin.Context)bool{
-	var message structs.Message
+// // Check post route for the message along with timeout
+// func timeoutCheck(context *gin.Context)bool{
+// 	var message structs.Message
 
-	// Call BindJSON to bind the received JSON to message.
-	if err := context.BindJSON(&message); err != nil {
-		fmt.Println("Invalid message object received.")
-		return false
-	}
-	context.IndentedJSON(http.StatusOK, "Client has received message")
+// 	// Call BindJSON to bind the received JSON to message.
+// 	if err := context.BindJSON(&message); err != nil {
+// 		fmt.Println("Invalid message object received.")
+// 		return false
+// 	}
+// 	context.IndentedJSON(http.StatusOK, "Client has received message")
 
-	switch message.MessageType {
-	case helper.ACK_APPEND:
-		fmt.Println("Chunk gave a reply for append ack request")
-		sendChunkAppend(message, true, context)
-	case helper.ACK_COMMIT:
-		fmt.Println("Chunk gave a reply for commit ack request")
-		confirmWrite(message, true, context)
-	}
+// 	switch message.MessageType {
+// 	case helper.ACK_APPEND:
+// 		fmt.Println("Chunk gave a reply for append ack request")
+// 		sendChunkAppend(message, true, context)
+// 	case helper.ACK_COMMIT:
+// 		fmt.Println("Chunk gave a reply for commit ack request")
+// 		confirmWrite(message, true, context)
+// 	}
 
-}
+// }
 
 // Send append request to primary chunk server and wait
 func sendChunkAppend(message structs.Message, tryAgain bool, context *gin.Context){
