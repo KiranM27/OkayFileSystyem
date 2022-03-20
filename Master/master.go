@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"github.com/gin-gonic/gin"
-	//client "oks/client"
+	client "oks/Client"
 	helper "oks/Helper"
 	structs "oks/Structs"
 	//chunk "oks/ChunkServer"
@@ -62,6 +62,7 @@ func postMessageHandler(context *gin.Context) {
 }
 
 func appendMessageHandler(message structs.Message){
+	fmt.Println("Before Sending")
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
 		Ports: []int{port_map.portToInt["6"], port_map.portToInt["1"], port_map.portToInt["2"], port_map.portToInt["3"]},
@@ -72,6 +73,7 @@ func appendMessageHandler(message structs.Message){
 		PayloadSize: message.PayloadSize,
 		ChunkOffset: metaData.chunkIdToOffset[metaData.fileIdToChunkId[message.Filename][0]],
 	}
+	fmt.Println("Master replying append request to client")
 	helper.SendMessage(message1)
 
 	// increment offset
@@ -93,5 +95,8 @@ func main(){
 	metaData.chunkIdToChunkserver["f1_c0"] = []int{8081, 8082, 8083}
 	offset := int64(5)
 	metaData.chunkIdToOffset["f1_c0"] = offset
+
+	go listen(1, 8080)
+	client.InitClient(7, 8086)
 
 }
