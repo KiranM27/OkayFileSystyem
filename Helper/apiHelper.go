@@ -7,13 +7,13 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-
-	//structs "gfs.com/master/structs"
+	structs "oks/Structs"
 )
 
 
 // Destination Port (increased Pointer) --> message.Port[message.Pointer], increase Pointer before sending
-func SendMessage(portNo int, message structs.Message) { // V2 takes in a Message object directly.
+func SendMessage(message structs.Message) { // V2 takes in a Message object directly.
+	portNo := message.Ports[message.Pointer]
 	request_url := BASE_URL + ":" + strconv.Itoa(portNo) + "/message"
 	messageJSON, _ := json.Marshal(message)
 	response, err := http.Post(request_url, "application/json", bytes.NewBuffer(messageJSON))
