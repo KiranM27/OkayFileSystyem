@@ -7,9 +7,11 @@ import (
 	helper "oks/Helper"
 	structs "oks/Structs"
 	"os"
-	"strconv"
-	"sync"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -75,7 +77,7 @@ func commitDataHandler(message structs.Message) {
 		if message.Pointer == len(message.Ports)-1 {
 			message.Reply()
 			message.SetMessageType(helper.ACK_APPEND)
-		// } else {
+			// } else {
 			message.Forward()
 		}
 		// helper.SendMessage(message)
@@ -86,11 +88,11 @@ func commitDataHandler(message structs.Message) {
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
 	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../" + helper.DATA_DIR)
-	portDirPath := filepath.Join(dataDirPath,  strconv.Itoa(currentPort))
-	chunkPath := filepath.Join(portDirPath,  chunkId)
+	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
+	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	fmt.Println(chunkPath)
-	fh, err := os.OpenFile(chunkPath,  os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -100,9 +102,19 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 	if !ok {
 		return errors.New("No data in Buffer for UID " + uid)
 	}
+
+	fileStats, _ := fh.Stat()
+	fileSize := fileStats.Size()
+	if chunkOffset > fileSize {
+		writeData = strings.Repeat(helper.PADDING, int(chunkOffset)-int(fileSize)) + writeData.(string)
+	}
 	writeDataBytes := []byte(writeData.(string))
+	_, err = fh.Seek(chunkOffset, 0)
+	if err != nil {
+		return errors.New("Error while seeking to UID " + uid)
+	}
 	fmt.Println(writeDataBytes)
-	if _, err := fh.WriteAt(writeDataBytes, chunkOffset); err != nil {
+	if _, err := fh.Write(writeDataBytes); err != nil {
 		fmt.Println(err)
 		return errors.New("Write Failed for UID " + uid)
 	}
@@ -134,7 +146,7 @@ func main() {
 	// go listen(2, 8002)
 	// go listen(3, 8003)
 
-	buffer.Store("holahello0", "payload")
+	buffer.Store("holahello9", "fuckgo")
 
 	message := structs.Message{
 		MessageType: helper.DATA_COMMIT,
@@ -142,9 +154,9 @@ func main() {
 		Pointer:     1,
 		Filename:    "hola",
 		ChunkId:     "hello",
-		Payload:     "payload",
-		PayloadSize: 7,
-		ChunkOffset: 0,
+		Payload:     "fuckgo",
+		PayloadSize: 8,
+		ChunkOffset: 9,
 	}
 
 	helper.SendMessage(message)
@@ -152,5 +164,5 @@ func main() {
 	for {
 	}
 	// createChunk(8000, "hello")
-	
+
 }
