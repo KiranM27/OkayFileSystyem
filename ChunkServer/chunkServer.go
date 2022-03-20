@@ -17,6 +17,7 @@ import (
 
 var (
 	buffer sync.Map
+	mutex  sync.Mutex
 )
 
 func landingPageHandler(context *gin.Context) {
@@ -73,6 +74,7 @@ func ACKHandler(message structs.Message) {
 }
 
 func commitDataHandler(message structs.Message) {
+	mutex.Lock()
 	err := writeMutation(message.ChunkId, message.ChunkOffset, message.GenerateUid(), message.Ports[message.Pointer])
 	//fmt.Println("ERROR :", err)
 	if err != nil {
@@ -81,11 +83,12 @@ func commitDataHandler(message structs.Message) {
 		if message.Pointer == len(message.Ports)-1 {
 			message.Reply()
 			message.SetMessageType(helper.ACK_COMMIT)
-			} else {
+		} else {
 			message.Forward()
 		}
 		helper.SendMessage(message)
 	}
+	mutex.Unlock()
 }
 
 func createNewChunkHandler(message structs.Message) {
@@ -101,9 +104,9 @@ func createNewChunkHandler(message structs.Message) {
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
 	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../" + helper.DATA_DIR)
-	portDirPath := filepath.Join(dataDirPath,  strconv.Itoa(currentPort))
-	chunkPath := filepath.Join(portDirPath,  chunkId+".txt")
+	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
+	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	fmt.Println(chunkPath)
 	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
 	if err != nil {
@@ -165,38 +168,27 @@ func ChunkServer(nodePid int, portNo int) {
 
 // func main() {
 
-	// go listen(1, 8000)
-	// go listen(2, 8002)
-	// go listen(3, 8003)
+// go listen(1, 8000)
+// go listen(2, 8002)
+// go listen(3, 8003)
 
-	// buffer.Store("holahello9", "fuckgo")
+// buffer.Store("holahello9", "fuckgo")
 
-	// message := structs.Message{
-	// 	MessageType: helper.DATA_COMMIT,
-	// 	Ports:       []int{8080, 8000, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
-	// 	Pointer:     1,
-	// 	Filename:    "hola",
-	// 	ChunkId:     "hello",
-	// 	Payload:     "payload",
-	// 	PayloadSize: 7,
-	// 	ChunkOffset: 2,
-	// }
+// message := structs.Message{
+// 	MessageType: helper.DATA_COMMIT,
+// 	Ports:       []int{8080, 8000, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
+// 	Pointer:     1,
+// 	Filename:    "hola",
+// 	ChunkId:     "hello",
+// 	Payload:     "fuckgo",
+// 	PayloadSize: 8,
+// 	ChunkOffset: 9,
+// }
 
-	// message := structs.Message{
-	// 	MessageType: helper.DATA_COMMIT,
-	// 	Ports:       []int{8080, 8000, 8002, 8003}, // 0: Client, 1: Primary, 2+: Secondary
-	// 	Pointer:     1,
-	// 	Filename:    "hola",
-	// 	ChunkId:     "hello",
-	// 	Payload:     "fuckgo",
-	// 	PayloadSize: 8,
-	// 	ChunkOffset: 9,
-	// }
+// helper.SendMessage(message)
 
-	// helper.SendMessage(message)
-
-	// for {
-	// }
-	// testCreateChunk()
+// for {
+// }
+// testCreateChunk()
 
 // }
