@@ -88,9 +88,9 @@ func commitDataHandler(message structs.Message) {
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
 	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
-	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
-	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
+	dataDirPath := filepath.Join(pwd, "../" + helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath,  strconv.Itoa(currentPort))
+	chunkPath := filepath.Join(portDirPath,  chunkId+".txt")
 	fmt.Println(chunkPath)
 	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
 	if err != nil {
