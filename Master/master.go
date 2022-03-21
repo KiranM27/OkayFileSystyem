@@ -160,7 +160,7 @@ func ackChunkCreate(message structs.Message) {
 	fmt.Println(metaData.chunkIdToChunkserver[message.ChunkId])
 
 	// increment offset
-	new_offset := 0 + message1.PayloadSize
+	new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
 	metaData.chunkIdToOffset[message.ChunkId] = new_offset
 }
 
@@ -219,4 +219,5 @@ func main() {
 	go chunkServer.ChunkServer(4, 8084)
 	go chunkServer.ChunkServer(5, 8085)
 	listen(0, 8080)
+
 }
