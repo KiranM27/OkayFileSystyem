@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -31,6 +33,10 @@ type MetaData struct {
 	// max append data is 2.5KB
 	// {f1 : {c0 : 0KB, c1 : 2KB} }
 	chunkIdToOffset map[string]int64
+
+	heartBeatAck sync.Map
+	// {8080:{f1_c0}}
+	chunkServerToChunkId map[int][]string
 }
 
 type Port struct {
@@ -58,13 +64,19 @@ func postMessageHandler(context *gin.Context) {
 		fmt.Println("Invalid message object received.")
 		return
 	}
-	context.IndentedJSON(http.StatusOK, message.MessageType+" message from Node "+strconv.Itoa(message.Ports[message.Pointer])+" was received by Master")
 
+	if message.MessageType != helper.ACK_HEARTBEAT{
+		context.IndentedJSON(http.StatusOK, message.MessageType+" message from Node "+strconv.Itoa(message.Ports[message.Pointer])+" was received by Master")
+	} else{
+		context.IndentedJSON(http.StatusOK, message.MessageType+" message from Node "+strconv.Itoa(message.Ports[message.Pointer+1])+" was received by Master")
+	}
 	switch message.MessageType {
 	case helper.DATA_APPEND:
 		go appendMessageHandler(message)
 	case helper.ACK_CHUNK_CREATE:
 		go ackChunkCreate(message)
+	case helper.ACK_HEARTBEAT:
+		go receiveHeartbeatACK(message)
 	}
 }
 
@@ -100,6 +112,7 @@ func fileNotNew(message structs.Message) {
 		Payload:        message.Payload,
 		PayloadSize:    message.PayloadSize,
 		ChunkOffset:    metaData.chunkIdToOffset[chunkId],
+		RecordIndex:    message.RecordIndex,
 	}
 	fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
@@ -131,6 +144,7 @@ func newFileAppend(message structs.Message) {
 		Payload:        message.Payload,
 		PayloadSize:    message.PayloadSize,
 		ChunkOffset:    0,
+		RecordIndex:    message.RecordIndex,
 	}
 	fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
@@ -156,17 +170,62 @@ func ackChunkCreate(message structs.Message) {
 		Payload:        message.Payload,
 		PayloadSize:    message.PayloadSize,
 		ChunkOffset:    0,
+		RecordIndex:    message.RecordIndex,
 	}
 	fmt.Println("Master approving append request to client")
 	helper.SendMessage(message1)
 
 	//record in metaData
+	for _, v := range chunkServers {
+		metaData.chunkServerToChunkId[v] = append(metaData.chunkServerToChunkId[v], message.ChunkId)
+	}
 	metaData.chunkIdToChunkserver[message.ChunkId] = chunkServers
 	fmt.Println(metaData.chunkIdToChunkserver[message.ChunkId])
 
 	// increment offset
 	new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
 	metaData.chunkIdToOffset[message.ChunkId] = new_offset
+}
+
+// Separate go-routine to send heartbeat messages in intervals
+func sendHeartbeat() {
+
+	for {
+		for i := 8081; i <= 8085; i++ {
+
+			heartbeatMsg := structs.Message{
+				MessageType:    helper.HEARTBEAT,
+				Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
+				Pointer:        1,
+				SourceFilename: "",
+				Filename:       "",
+				ChunkId:        "",
+				Payload:        "",
+				PayloadSize:    0,
+				ChunkOffset:    0,
+				RecordIndex:    1,
+			}
+			go helper.SendMessage(heartbeatMsg)
+		}
+
+		time.Sleep(time.Second * 300)
+	}
+}
+
+// Updates heartbeat map to true if receive heartbeat ack from chunk server
+func receiveHeartbeatACK(message structs.Message) {
+	fmt.Println(message.Ports[1], message)
+	metaData.heartBeatAck.Store(message.Ports[1], true)
+	metaData.printACKMap()
+}
+
+// @ts-ignore
+func (m *MetaData) printACKMap() {
+	// Ignore any error from here, works just fine
+	m.heartBeatAck.Range(func(k, v interface{}) bool {
+		fmt.Println(k, v)
+		return true
+	})
 }
 
 func choose_3_random_chunkServers() []int {
@@ -206,10 +265,21 @@ func MapRandomKeyGet(mapI interface{}) interface{} {
 	return keys[rand.Intn(len(keys))].Interface()
 }
 
+// Create ACKMap on start-up
+func (m *MetaData) initialiseACKMap() {
+	for i := 8081; i <= 8085; i++ {
+		m.heartBeatAck.Store(i, false)
+	}
+}
+
 func main() {
 	metaData.fileIdToChunkId = make(map[string][]string)
 	metaData.chunkIdToChunkserver = make(map[string][]int)
+	metaData.chunkServerToChunkId = make(map[int][]string)
 	metaData.chunkIdToOffset = make(map[string]int64)
+	metaData.initialiseACKMap()
+	metaData.printACKMap()
+
 	port_map.portToInt = map[string]int{"0": 8080, "1": 8081, "2": 8082, "3": 8083, "4": 8084, "5": 8085}
 
 	// create dummy data
@@ -223,6 +293,26 @@ func main() {
 	go chunkServer.ChunkServer(3, 8083)
 	go chunkServer.ChunkServer(4, 8084)
 	go chunkServer.ChunkServer(5, 8085)
+	go sendHeartbeat()
 	listen(0, 8080)
 
 }
+
+// TODO
+
+// Priority: Best case [ DONE ]
+// ASSUME ALL REPLY for now
+// 1. Send Heartbeat to ChunkServers
+// 2. Listen for Heartbeat
+// 3. Update HeartbeatAck accordingly
+
+// Next case: Timeout
+// Assume a node fails, master does not receive ACK
+// 1. Implement timeout
+// 2. Update HeartbeatAck
+// 3. Check metadata of chunk server that failed
+// 		3a. Get ALL chunk ID from chunkServerToChunkId
+// 		3b. Get available chunk servers for each chunk ID, check chunkIdToChunkserver
+// 		3c. Get chunk servers that do not have chunk, check chunkIdToChunkserver
+// 		3d. Select which chunk you want to replicate to
+// 		3e.
