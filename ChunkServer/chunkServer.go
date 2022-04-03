@@ -29,13 +29,17 @@ func postMessageHandler(context *gin.Context) {
 
 	// Call BindJSON to bind the received JSON to message.
 	if err := context.BindJSON(&message); err != nil {
-		fmt.Println("Invalid message object received.")
+		fmt.Println("Invalid message object received.", err)
 		return
 	}
 	context.IndentedJSON(http.StatusOK, message.MessageType+" Received")
 	fmt.Println("---------- Received Message: ", message.MessageType, " ----------")
 
-	if !isNodeAlive { return }
+	portNo := strconv.Itoa(message.Ports[message.Pointer])
+	if !isNodeAlive && message.MessageType != helper.REVIVE { 
+		fmt.Println("Node " + portNo + " is dead and will not be responding to the incoming request.")
+		return 
+	}
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
@@ -53,7 +57,7 @@ func postMessageHandler(context *gin.Context) {
 	case helper.HEARTBEAT:
 		go heartbeatHandler(message)
 	case helper.KILL_YOURSELF:
-		go killYourselfHandler(message)
+		killYourselfHandler(message)
 	case helper.REVIVE:
 		reviveHandler(message)
 	}
@@ -114,6 +118,7 @@ func heartbeatHandler(message structs.Message) {
 
 func killYourselfHandler(message structs.Message) {
 	portNo := strconv.Itoa(message.Ports[message.Pointer])
+	fmt.Println("Kill message received by Node " + portNo)
 	dataPath := ".." + helper.DATA_DIR + "/" + portNo
 	absDataPath, _ := filepath.Abs(dataPath)
 	err := os.RemoveAll(absDataPath)
