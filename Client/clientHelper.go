@@ -52,11 +52,12 @@ func getFileSize(filename string) (int64) {
 	
 	// Get relative path of the text file
 	// First arg is the main directory, second arg is where file is stored
-	rel, err := filepath.Rel("GFS/Master", "GFS/Client/" + filename)
+	fmt.Println(os.Getwd())
+	rel, err := filepath.Rel(helper.ROOT_DIR + helper.TEST_DIR, helper.ROOT_DIR + helper.TEST_DATA_DIR + "/" + filename)
     if err != nil {
         panic(err)
     }
-    fmt.Println(rel) // debug
+    fmt.Println("getFileSize path ", rel) // debug
 
 	file, _ := os.Open(rel)
 	fi, err := file.Stat()
@@ -72,7 +73,7 @@ func getFileSize(filename string) (int64) {
 func splitFile(oldFilename string)(uint64){
 		
 		// Relative file path
-		rel, err := filepath.Rel("oks/Master", "oks/Client/" + oldFilename)
+		rel, err := filepath.Rel(helper.ROOT_DIR + helper.TEST_DIR, helper.ROOT_DIR + helper.TEST_DATA_DIR + "/" + oldFilename)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -101,7 +102,7 @@ func splitFile(oldFilename string)(uint64){
 			file.Read(partBuffer)
 
 			// write to disk
-			rel, err := filepath.Rel("GFS/Master", "GFS/Client/" + oldFilename)
+			rel, err := filepath.Rel(helper.ROOT_DIR + helper.TEST_DIR, helper.ROOT_DIR + helper.TEST_DATA_DIR + "/" + oldFilename)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -129,7 +130,7 @@ func removeExtension(fpath string) string {
 // Helper to read file
 func readFile(filename string) string {
 	// Read the file
-	rel, err := filepath.Rel("oks/Master", "oks/Client/" + filename)
+	rel, err := filepath.Rel(helper.ROOT_DIR + helper.TEST_DIR, helper.ROOT_DIR + helper.TEST_DATA_DIR + "/" + filename)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -79,7 +79,7 @@ func appendMessageHandler(message structs.Message) {
 
 func fileNotNew(message structs.Message) {
 	//create message to send to client
-	chunkId := metaData.fileIdToChunkId[message.Filename][len(metaData.fileIdToChunkId[message.Filename]) - 1]
+	chunkId := metaData.fileIdToChunkId[message.Filename][len(metaData.fileIdToChunkId[message.Filename])-1]
 	messagePorts := message.Ports // [C, M]
 	messagePorts = append([]int{messagePorts[0]}, metaData.chunkIdToChunkserver[chunkId]...)
 	// [C, P, S1, S2]
@@ -87,13 +87,14 @@ func fileNotNew(message structs.Message) {
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
 		// master, primary, secondary_1, secondary_2
-		Ports:       messagePorts, // [C, P, S1, S2]
-		Pointer:     0,
-		Filename:    message.Filename,
-		ChunkId:     chunkId,
-		Payload:     message.Payload,
-		PayloadSize: message.PayloadSize,
-		ChunkOffset: metaData.chunkIdToOffset[chunkId],
+		Ports:          messagePorts, // [C, P, S1, S2]
+		Pointer:        0,
+		SourceFilename: message.SourceFilename,
+		Filename:       message.Filename,
+		ChunkId:        chunkId,
+		Payload:        message.Payload,
+		PayloadSize:    message.PayloadSize,
+		ChunkOffset:    metaData.chunkIdToOffset[chunkId],
 	}
 	fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
@@ -117,13 +118,14 @@ func newFileAppend(message structs.Message) {
 	message1 := structs.Message{
 		MessageType: helper.CREATE_NEW_CHUNK,
 		// master, primary, secondary_1, secondary_2
-		Ports:       messagePorts, // [C, M, P, S1, S2]
-		Pointer:     2,
-		Filename:    message.Filename,
-		ChunkId:     chunkId,
-		Payload:     message.Payload,
-		PayloadSize: message.PayloadSize,
-		ChunkOffset: 0,
+		Ports:          messagePorts, // [C, M, P, S1, S2]
+		Pointer:        2,
+		SourceFilename: message.SourceFilename,
+		Filename:       message.Filename,
+		ChunkId:        chunkId,
+		Payload:        message.Payload,
+		PayloadSize:    message.PayloadSize,
+		ChunkOffset:    0,
 	}
 	fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
@@ -132,7 +134,7 @@ func newFileAppend(message structs.Message) {
 
 // after receiving ack from primary, approve request for client
 func ackChunkCreate(message structs.Message) {
-	messagePorts := message.Ports                                      // [C, M, P, S1, S2]
+	messagePorts := message.Ports // [C, M, P, S1, S2]
 	fmt.Println("[C, M, P, S1, S2]", messagePorts)
 	messagePorts = append([]int{messagePorts[0]}, messagePorts[2:]...) //[C, P, S1, S2]
 	fmt.Println("CHUNK CREATED - PRIOR UPDATING PORTS [C, P, S1, S2]", messagePorts)
@@ -140,14 +142,15 @@ func ackChunkCreate(message structs.Message) {
 	fmt.Println(chunkServers)
 
 	message1 := structs.Message{
-		MessageType: helper.DATA_APPEND,
-		Ports:       messagePorts, // [C, P, S1, S2]
-		Pointer:     0,
-		Filename:    message.Filename,
-		ChunkId:     message.ChunkId,
-		Payload:     message.Payload,
-		PayloadSize: message.PayloadSize,
-		ChunkOffset: 0,
+		MessageType:    helper.DATA_APPEND,
+		Ports:          messagePorts, // [C, P, S1, S2]
+		Pointer:        0,
+		SourceFilename: message.SourceFilename,
+		Filename:       message.Filename,
+		ChunkId:        message.ChunkId,
+		Payload:        message.Payload,
+		PayloadSize:    message.PayloadSize,
+		ChunkOffset:    0,
 	}
 	fmt.Println("Master approving append request to client")
 	helper.SendMessage(message1)
@@ -157,7 +160,7 @@ func ackChunkCreate(message structs.Message) {
 	fmt.Println(metaData.chunkIdToChunkserver[message.ChunkId])
 
 	// increment offset
-	new_offset := 0 + message1.PayloadSize
+	new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
 	metaData.chunkIdToOffset[message.ChunkId] = new_offset
 }
 
