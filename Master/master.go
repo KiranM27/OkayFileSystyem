@@ -203,6 +203,7 @@ func (m heartState) String() string {
 func sendHeartbeat() {
 
 	for {
+		metaData.printACKMap()
 		for i := 8081; i <= 8085; i++ {
 			currentHeartState, _ := metaData.heartBeatAck.Load(i)
 			switch currentHeartState {
@@ -243,7 +244,7 @@ func sendHeartbeat() {
 
 		}
 
-		time.Sleep(time.Second * 300)
+		time.Sleep(time.Second * 5)
 	}
 }
 
@@ -251,7 +252,6 @@ func sendHeartbeat() {
 func receiveHeartbeatACK(message structs.Message) {
 	//fmt.Println(message.Ports[1], message)
 	metaData.heartBeatAck.Store(message.Ports[1], Alive)
-	metaData.printACKMap()
 }
 
 // @ts-ignore
