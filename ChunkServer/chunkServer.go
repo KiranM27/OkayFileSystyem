@@ -50,8 +50,7 @@ func postMessageHandler(context *gin.Context) {
 		go ACKHandler(message)
 	case helper.HEARTBEAT:
 		go heartbeatHandler(message)
-	case helper.KILL_YOURSELF:
-		go killYourselfHandler(message)
+
 	}
 }
 
@@ -107,11 +106,12 @@ func heartbeatHandler(message structs.Message) {
 	helper.SendMessage(message)
 }
 
+/*
 func killYourselfHandler(message structs.Message) {
 	portNo := message.Ports[message.Pointer]
 	dataPath := "../"
 }
-
+*/
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
 	pwd, _ := os.Getwd()
 	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
