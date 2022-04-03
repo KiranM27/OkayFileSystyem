@@ -11,13 +11,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
 	"github.com/gin-gonic/gin"
 )
 
 var (
-	buffer sync.Map
-	mutex  sync.Mutex
-	isNodeAlive bool = true
+	buffer   sync.Map
+	mutex    sync.Mutex
+	aliveMap sync.Map
 )
 
 func landingPageHandler(context *gin.Context) {
@@ -36,9 +37,10 @@ func postMessageHandler(context *gin.Context) {
 	fmt.Println("---------- Received Message: ", message.MessageType, " ----------")
 
 	portNo := strconv.Itoa(message.Ports[message.Pointer])
-	if !isNodeAlive && message.MessageType != helper.REVIVE { 
+	isNodealive, _ := aliveMap.Load(portNo)
+	if isNodealive == false && message.MessageType != helper.REVIVE {
 		fmt.Println("Node " + portNo + " is dead and will not be responding to the incoming request.")
-		return 
+		return
 	}
 
 	switch message.MessageType {
@@ -57,9 +59,9 @@ func postMessageHandler(context *gin.Context) {
 	case helper.HEARTBEAT:
 		go heartbeatHandler(message)
 	case helper.KILL_YOURSELF:
-		killYourselfHandler(message)
+		go killYourselfHandler(message)
 	case helper.REVIVE:
-		reviveHandler(message)
+		go reviveHandler(message)
 	}
 }
 
@@ -115,23 +117,26 @@ func heartbeatHandler(message structs.Message) {
 	helper.SendMessage(message)
 }
 
-
 func killYourselfHandler(message structs.Message) {
 	portNo := strconv.Itoa(message.Ports[message.Pointer])
 	fmt.Println("Kill message received by Node " + portNo)
 	dataPath := ".." + helper.DATA_DIR + "/" + portNo
 	absDataPath, _ := filepath.Abs(dataPath)
 	err := os.RemoveAll(absDataPath)
-    if err != nil {
-        fmt.Println("Error occurred while clearing files in port: " + portNo, err)
-    }
-	isNodeAlive = false // Set isAlive to False.
+	if err != nil {
+		fmt.Println("Error occurred while clearing files in port: "+portNo, err)
+	}
+
+	aliveMap.Store(portNo, false) // Set isAlive to False.
 	fmt.Println("Node " + portNo + " has failed!")
 }
 
 func reviveHandler(message structs.Message) {
 	portNo := strconv.Itoa(message.Ports[message.Pointer])
-	isNodeAlive = true
+	aliveMap.Store(portNo, true)
+	message.SetMessageType(helper.ACK_HEARTBEAT)
+	message.Reply()
+	helper.SendMessage(message)
 	fmt.Println("Node " + portNo + " is now back up!")
 }
 
@@ -173,6 +178,7 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 }
 
 func listen(nodePid int, portNo int) {
+
 	router := gin.Default()
 
 	router.GET("/", landingPageHandler)

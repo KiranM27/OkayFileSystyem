@@ -217,7 +217,10 @@ func sendHeartbeat() {
 
 	for {
 		metaData.printACKMap()
+<<<<<<< HEAD
 
+=======
+>>>>>>> efc3a69202747ecdbd99b9273e1e64ee5b7e2117
 		for i := 8081; i <= 8085; i++ {
 			currentHeartState, _ := metaData.heartBeatAck.Load(i)
 			switch currentHeartState {
