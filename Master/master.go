@@ -20,6 +20,15 @@ import (
 var metaData MetaData
 var port_map Port
 
+type heartState int
+
+const (
+	Start heartState = iota
+	Pending
+	Alive
+	Dead
+)
+
 type MetaData struct {
 	// key: file id int, value: chunk array
 	// eg file 1 = [f1_c0, file1_chunk2, file1_chunk3]
@@ -65,9 +74,9 @@ func postMessageHandler(context *gin.Context) {
 		return
 	}
 
-	if message.MessageType != helper.ACK_HEARTBEAT{
+	if message.MessageType != helper.ACK_HEARTBEAT {
 		context.IndentedJSON(http.StatusOK, message.MessageType+" message from Node "+strconv.Itoa(message.Ports[message.Pointer])+" was received by Master")
-	} else{
+	} else {
 		context.IndentedJSON(http.StatusOK, message.MessageType+" message from Node "+strconv.Itoa(message.Ports[message.Pointer+1])+" was received by Master")
 	}
 	switch message.MessageType {
@@ -186,26 +195,52 @@ func ackChunkCreate(message structs.Message) {
 	new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
 	metaData.chunkIdToOffset[message.ChunkId] = new_offset
 }
+func (m heartState) String() string {
+	return [...]string{"START", "PENDING", "ALIVE", "DEAD"}[m]
+}
 
 // Separate go-routine to send heartbeat messages in intervals
 func sendHeartbeat() {
 
 	for {
 		for i := 8081; i <= 8085; i++ {
-
-			heartbeatMsg := structs.Message{
-				MessageType:    helper.HEARTBEAT,
-				Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
-				Pointer:        1,
-				SourceFilename: "",
-				Filename:       "",
-				ChunkId:        "",
-				Payload:        "",
-				PayloadSize:    0,
-				ChunkOffset:    0,
-				RecordIndex:    1,
+			currentHeartState, _ := metaData.heartBeatAck.Load(i)
+			switch currentHeartState {
+			case Start: // For the first heartbeat
+				metaData.heartBeatAck.Store(i, Pending)
+				heartbeatMsg := structs.Message{
+					MessageType:    helper.HEARTBEAT,
+					Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
+					Pointer:        1,
+					SourceFilename: "",
+					Filename:       "",
+					ChunkId:        "",
+					Payload:        "",
+					PayloadSize:    0,
+					ChunkOffset:    0,
+					RecordIndex:    1,
+				}
+				go helper.SendMessage(heartbeatMsg)
+			case Pending: // No reply from the previous heartbeat, consider the chunk server dead
+				metaData.heartBeatAck.Store(i, Dead)
+			case Alive: // Successfully received ack from previous heartbeat, send next heartbeat
+				metaData.heartBeatAck.Store(i, Pending)
+				heartbeatMsg := structs.Message{
+					MessageType:    helper.HEARTBEAT,
+					Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
+					Pointer:        1,
+					SourceFilename: "",
+					Filename:       "",
+					ChunkId:        "",
+					Payload:        "",
+					PayloadSize:    0,
+					ChunkOffset:    0,
+					RecordIndex:    1,
+				}
+				go helper.SendMessage(heartbeatMsg)
+			case Dead: // Chunk server is dead, do nothing
 			}
-			go helper.SendMessage(heartbeatMsg)
+
 		}
 
 		time.Sleep(time.Second * 300)
@@ -214,13 +249,14 @@ func sendHeartbeat() {
 
 // Updates heartbeat map to true if receive heartbeat ack from chunk server
 func receiveHeartbeatACK(message structs.Message) {
-	fmt.Println(message.Ports[1], message)
-	metaData.heartBeatAck.Store(message.Ports[1], true)
+	//fmt.Println(message.Ports[1], message)
+	metaData.heartBeatAck.Store(message.Ports[1], Alive)
 	metaData.printACKMap()
 }
 
 // @ts-ignore
 func (m *MetaData) printACKMap() {
+	//fmt.Println(m.heartBeatAck)
 	// Ignore any error from here, works just fine
 	m.heartBeatAck.Range(func(k, v interface{}) bool {
 		fmt.Println(k, v)
@@ -268,7 +304,7 @@ func MapRandomKeyGet(mapI interface{}) interface{} {
 // Create ACKMap on start-up
 func (m *MetaData) initialiseACKMap() {
 	for i := 8081; i <= 8085; i++ {
-		m.heartBeatAck.Store(i, false)
+		m.heartBeatAck.Store(i, Start)
 	}
 }
 
@@ -306,13 +342,14 @@ func main() {
 // 2. Listen for Heartbeat
 // 3. Update HeartbeatAck accordingly
 
-// Next case: Timeout
+// Next case: Dead chunk server
 // Assume a node fails, master does not receive ACK
-// 1. Implement timeout
+// 1. Implement states
 // 2. Update HeartbeatAck
+
 // 3. Check metadata of chunk server that failed
 // 		3a. Get ALL chunk ID from chunkServerToChunkId
 // 		3b. Get available chunk servers for each chunk ID, check chunkIdToChunkserver
 // 		3c. Get chunk servers that do not have chunk, check chunkIdToChunkserver
-// 		3d. Select which chunk you want to replicate to
+// 		3d. Select which chunk server you want to replicate to
 // 		3e.
