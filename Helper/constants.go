@@ -16,12 +16,14 @@ const (
 	HEARTBEAT     = "HEARTBEAT"     // hearbeat message by master.
 	KILL_YOURSELF = "KILL_YOURSELF" // ask chunk to not respond to any messages.
 	REVIVE        = "REVIVE"        // ask chunk to come back up and start responding to messages.
+	REPLICATE     = "REPLICATE"     // ask chunk (server) to replicate chunk (the file)
 
 	ACK_APPEND       = "ACK_APPEND"       // chunk server ACK that data to be appened has been received
 	ACK_COMMIT       = "ACK_COMMIT"       // chunk server ACK that data has been committed
 	ACK_CHUNK_CREATE = "ACK_CHUNK_CREATE" // chunk server ACK that new chunk has been created
 	ACK_PAD          = "ACK_PAD"          // master waiting for ACK PAD
 	ACK_HEARTBEAT    = "ACK_HEARTBEAT"    // chunk server ack that it is still alive
+	ACK_REPLICATION  = "ACK_REPLICATION"  // chunk server ack after it has completed replication from another chunkserver
 
 	CREATE_NEW_CHUNK = "CREATE_NEW_CHUNK" // ask the master to create a new chunk
 
