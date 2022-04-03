@@ -21,8 +21,14 @@ const (
 
 	CREATE_NEW_CHUNK = "CREATE_NEW_CHUNK" // ask the master to create a new chunk
 
-	DATA_DIR = "data"
-	PADDING  = "~"
+	// Directories from root i.e.)
+	ROOT_DIR      = "OkayFileSystem" // Root dir
+	DATA_DIR      = "/data"          // directory where the chunk servers store their data
+	TEST_DIR      = "/test"          // directory where files corresponding to testing are stored
+	TEST_DATA_DIR = "/test/testData" // directory where data corresponding to testing is stored
+
+	// Unicode 1 Byte character that is used for padding
+	PADDING = "~"
 )
 
 var (
