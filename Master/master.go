@@ -39,6 +39,11 @@ type Port struct {
 
 func listen(nodePid int, portNo int) {
 	router := gin.Default()
+	// router.Use(gin.CustomRecovery(func (c *gin.Context, recovered interface{}){
+	// 	if err, ok := recovered.(string); ok {
+	// 		c.String(http.StatusInternalServerError, fmt.Sprintf("error: %s", err))
+	// 	}
+	// }))
 	router.POST("/message", postMessageHandler)
 
 	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)

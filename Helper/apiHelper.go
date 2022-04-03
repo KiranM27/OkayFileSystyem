@@ -18,16 +18,17 @@ func SendMessage(message structs.Message) { // V2 takes in a Message object dire
 	messageJSON, _ := json.Marshal(message)
 	response, err := http.Post(request_url, "application/json", bytes.NewBuffer(messageJSON))
 
-	//Handle Error
+	//Handle Error (do not log.Fatal so that it doesnt exit)
 	if err != nil {
-		log.Fatalf("SendMessage: An Error Occured - %v", err)
+		log.Printf("SendMessage: An Error Occured - %v", err)
+	}else{
+		defer response.Body.Close()
+		//Read the response body (do not log.Fatal so that it doesnt exit)
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			log.Printf("SendMessage: An Error Occured at Body - %v",err)
+		}
+		log.Println(string(body))
 	}
 
-	defer response.Body.Close()
-	//Read the response body
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println(string(body))
 }
