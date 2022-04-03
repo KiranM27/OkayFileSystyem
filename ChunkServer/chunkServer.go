@@ -48,10 +48,17 @@ func postMessageHandler(context *gin.Context) {
 		createNewChunkHandler(message)
 	case helper.ACK_CHUNK_CREATE:
 		go ACKHandler(message)
-		// case helper.DATA_PAD:
-		// 	padHandler(message)
-		// case helper.ACK_PAD:
-		// 	padACKHandler(message)
+	case helper.HEARTBEAT:
+		go heartbeatHandler(message)
+	case helper.KILL_YOURSELF:
+		go killYourselfHandler(message)
+	}
+}
+
+func ACKHandler(message structs.Message) {
+	if message.Pointer != 0 {
+		message.Reply()
+		helper.SendMessage(message)
 	}
 }
 
@@ -64,13 +71,6 @@ func appendMessageHandler(message structs.Message) {
 		message.Forward()
 	}
 	helper.SendMessage(message)
-}
-
-func ACKHandler(message structs.Message) {
-	if message.Pointer != 0 {
-		message.Reply()
-		helper.SendMessage(message)
-	}
 }
 
 func commitDataHandler(message structs.Message) {
@@ -99,6 +99,17 @@ func createNewChunkHandler(message structs.Message) {
 		message.Forward()
 	}
 	helper.SendMessage(message)
+}
+
+func heartbeatHandler(message structs.Message) {
+	message.SetMessageType(helper.ACK_HEARTBEAT)
+	message.Reply()
+	helper.SendMessage(message)
+}
+
+func killYourselfHandler(message structs.Message) {
+	portNo := message.Ports[message.Pointer]
+	dataPath := "../"
 }
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
