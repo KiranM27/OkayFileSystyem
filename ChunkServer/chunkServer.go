@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
 	"github.com/gin-gonic/gin"
 )
 
 var (
 	buffer sync.Map
 	mutex  sync.Mutex
+	isNodeAlive bool = true
 )
 
 func landingPageHandler(context *gin.Context) {
@@ -29,11 +29,17 @@ func postMessageHandler(context *gin.Context) {
 
 	// Call BindJSON to bind the received JSON to message.
 	if err := context.BindJSON(&message); err != nil {
-		fmt.Println("Invalid message object received.")
+		fmt.Println("Invalid message object received.", err)
 		return
 	}
 	context.IndentedJSON(http.StatusOK, message.MessageType+" Received")
 	fmt.Println("---------- Received Message: ", message.MessageType, " ----------")
+
+	portNo := strconv.Itoa(message.Ports[message.Pointer])
+	if !isNodeAlive && message.MessageType != helper.REVIVE { 
+		fmt.Println("Node " + portNo + " is dead and will not be responding to the incoming request.")
+		return 
+	}
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
@@ -50,7 +56,10 @@ func postMessageHandler(context *gin.Context) {
 		go ACKHandler(message)
 	case helper.HEARTBEAT:
 		go heartbeatHandler(message)
-
+	case helper.KILL_YOURSELF:
+		killYourselfHandler(message)
+	case helper.REVIVE:
+		reviveHandler(message)
 	}
 }
 
@@ -106,12 +115,26 @@ func heartbeatHandler(message structs.Message) {
 	helper.SendMessage(message)
 }
 
-/*
+
 func killYourselfHandler(message structs.Message) {
-	portNo := message.Ports[message.Pointer]
-	dataPath := "../"
+	portNo := strconv.Itoa(message.Ports[message.Pointer])
+	fmt.Println("Kill message received by Node " + portNo)
+	dataPath := ".." + helper.DATA_DIR + "/" + portNo
+	absDataPath, _ := filepath.Abs(dataPath)
+	err := os.RemoveAll(absDataPath)
+    if err != nil {
+        fmt.Println("Error occurred while clearing files in port: " + portNo, err)
+    }
+	isNodeAlive = false // Set isAlive to False.
+	fmt.Println("Node " + portNo + " has failed!")
 }
-*/
+
+func reviveHandler(message structs.Message) {
+	portNo := strconv.Itoa(message.Ports[message.Pointer])
+	isNodeAlive = true
+	fmt.Println("Node " + portNo + " is now back up!")
+}
+
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
 	pwd, _ := os.Getwd()
 	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
@@ -167,12 +190,6 @@ func createChunk(portNo int, chunkId string) {
 	helper.CreateFolder(portDataDirPath)
 	chunkPath := filepath.Join(portDataDirPath, chunkId+".txt")
 	helper.CreateFile(chunkPath)
-}
-
-func testCreateChunk() {
-	createChunk(8081, "test_c0")
-	createChunk(8082, "test_c0")
-	createChunk(8083, "test_c0")
 }
 
 func ChunkServer(nodePid int, portNo int) {
