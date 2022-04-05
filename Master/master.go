@@ -52,7 +52,6 @@ type MetaData struct {
 
 // Placeholder - TODO: Add proper replication message struct to message.go
 
-
 type Port struct {
 	portToInt map[string]int
 }
@@ -117,6 +116,10 @@ func fileNotNew(message structs.Message) {
 	messagePorts := message.Ports // [C, M]
 	messagePorts = append([]int{messagePorts[0]}, metaData.chunkIdToChunkserver[chunkId]...)
 	// [C, P, S1, S2]
+	if len(messagePorts) != 4 { // doesn't reply to client as file creation is ongoing.
+		fmt.Println("Node " + strconv.Itoa(message.Ports[0]) + " just got REJECTED ______________________________________________________________________________")
+		return
+	} 
 
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
@@ -168,7 +171,6 @@ func newFileAppend(message structs.Message) {
 	}
 	fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
-
 }
 
 // after receiving ack from primary, approve request for client
@@ -226,13 +228,6 @@ func sendHeartbeat() {
 					MessageType:    helper.HEARTBEAT,
 					Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
 					Pointer:        1,
-					SourceFilename: "",
-					Filename:       "",
-					ChunkId:        "",
-					Payload:        "",
-					PayloadSize:    0,
-					ChunkOffset:    0,
-					RecordIndex:    1,
 				}
 				go helper.SendMessage(heartbeatMsg)
 			case Pending: // No reply from the previous heartbeat, consider the chunk server dead
@@ -243,13 +238,6 @@ func sendHeartbeat() {
 					MessageType:    helper.HEARTBEAT,
 					Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
 					Pointer:        1,
-					SourceFilename: "",
-					Filename:       "",
-					ChunkId:        "",
-					Payload:        "",
-					PayloadSize:    0,
-					ChunkOffset:    0,
-					RecordIndex:    1,
 				}
 				go helper.SendMessage(heartbeatMsg)
 			case Dead: // Chunk server is dead, replicate server
@@ -288,7 +276,7 @@ func startReplicate(chunkServerId int) {
 		sourceServers := metaData.chunkIdToChunkserver[chunkId] // get list of remaining chunk servers associated to chunk ID
 
 		// 3c - Get available servers we can replicate to
-		// Comment: Do we have to know every available one? Once we find one lets just pick it and end. 
+		// Comment: Do we have to know every available one? Once we find one lets just pick it and end.
 		// availableServers := []int{}
 		var replicateServer int
 		for chunkServerId := range metaData.chunkServerToChunkId { // get global list of chunk servers
@@ -299,7 +287,7 @@ func startReplicate(chunkServerId int) {
 			}
 		}
 		// replicateServer := availableServers[0] // just gest the first one lol
-		
+
 		// 3d
 
 		// create new replication message
@@ -310,7 +298,7 @@ func startReplicate(chunkServerId int) {
 			Sources:     sourceServers,
 			TargetCS:    replicateServer,
 		}
-		
+
 		// 3f - add replication request to replication map
 		metaData.replicationMap[replicateServer] = append(metaData.replicationMap[replicateServer], newReplication)
 		temporaryReplicationMap[replicateServer] = append(temporaryReplicationMap[replicateServer], newReplication)
@@ -319,7 +307,7 @@ func startReplicate(chunkServerId int) {
 	// 3g - Send to target [NOT DONE]
 	// TODO - New SendMessage for Replication Message
 	for _, replicationMsgs := range temporaryReplicationMap {
-		for _,repMessage := range replicationMsgs {
+		for _, repMessage := range replicationMsgs {
 			go helper.SendRep(repMessage) // need new helper function for rep msg
 		}
 	}

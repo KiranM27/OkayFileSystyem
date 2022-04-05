@@ -1,21 +1,21 @@
 package client
+// Client works on only one append operration at a time !!
 
 import (
 	//"os"
 	"fmt"
-	"net/http"
 	"github.com/gin-gonic/gin"
-	"sync"
-	structs "oks/Structs"
+	"net/http"
 	helper "oks/Helper"
+	structs "oks/Structs"
 	"strconv"
+	"sync"
 	"time"
-
 )
 
 var ACKMap sync.Map
 
-func listen(id int, portNumber int){
+func listen(id int, portNumber int) {
 	router := gin.Default()
 	router.POST("/message", messageHandler)
 
@@ -36,13 +36,13 @@ func messageHandler(context *gin.Context) {
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
-		fmt.Println("Master gave a reply for append request")
+		// fmt.Println("Master gave a reply for append request")
 		go sendChunkAppend(message)
 	case helper.ACK_APPEND:
-		fmt.Println("Chunk gave a reply for append request")
+		// fmt.Println("Chunk gave a reply for append request")
 		go confirmWrite(message)
 	case helper.ACK_COMMIT:
-		fmt.Println("Chunk gave reply for commit request")
+		// fmt.Println("Chunk gave reply for commit request")
 		go finishAppend(message)
 	}
 }
@@ -66,6 +66,15 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 	// If no split happened, append normally
 	// If split, for loop to append
 	if numChunks == 1 {
+		ACKMapClientRecords, _ := ACKMap.Load(clientPort)
+		if ACKMapClientRecords == nil {
+			ACKMapClientRecords = []structs.ACKMAPRecord{}
+		}
+		recordIndex := len(ACKMapClientRecords.([]structs.ACKMAPRecord))
+		ACKMapClientRecords = append(ACKMapClientRecords.([]structs.ACKMAPRecord), structs.ACKMAPRecord{
+			RecordIndex: recordIndex,
+			Acked:       false,
+		})
 		message := structs.Message{
 			MessageType:    helper.DATA_APPEND,
 			Ports:          []int{clientPort, helper.MASTER_SERVER_PORT}, // 0 is client, 1 is master
@@ -73,21 +82,24 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 			SourceFilename: sourceFilename,
 			Filename:       OFSFilename, // File name in the Okay File System
 			PayloadSize:    sourceFileByteSize,
+			RecordIndex:    uint64(recordIndex),
 		}
-		ACKMap.Store(int(message.RecordIndex),true)
+
+		ACKMap.Store(clientPort, ACKMapClientRecords)
 		// HTTP Request to Master
-		fmt.Println("Sending append request to Master")
+		fmt.Println(strconv.Itoa(clientPort) + " Sending append request to Master")
 		helper.SendMessage(message)
 		go runTimer(message)
-		fmt.Println("Finished sending append request to Master")
+		// fmt.Println(strconv.Itoa(clientPort) + " Finished sending append request to Master")
 
 	} else {
+		// TODO: FIX RECORD INDEX - USE SOLN ABOVE, BUT NEED TO UPDATE FOR MULTIPLE RECORDS
 		sourceFilePrefix := removeExtension(sourceFilename)
 		for i := uint64(0); i < numChunks; i++ {
 			smallFileName := sourceFilePrefix + strconv.FormatUint(i, 10) + ".txt"
 			smallFileSize := getFileSize(smallFileName)
-			fmt.Println(smallFileName) // debug
-			fmt.Println(smallFileSize) // debug
+			// fmt.Println(smallFileName) // debug
+			// fmt.Println(smallFileSize) // debug
 
 			message := structs.Message{
 				MessageType:    helper.DATA_APPEND,
@@ -97,43 +109,44 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 				Filename:       OFSFilename, // TODO: This should be the same file name still right
 				PayloadSize:    smallFileSize,
 			}
-			ACKMap.Store(int(message.RecordIndex),true)
+			ACKMap.Store(int(message.RecordIndex), true)
 			// HTTP Request to Master
-			fmt.Println("Sending append request to Master")
+			fmt.Println(strconv.Itoa(clientPort) + " Sending append request to Master")
 			helper.SendMessage(message)
 			go runTimer(message)
 		}
-		
+
 	}
 }
 
-func runTimer(message structs.Message){
-	timer := time.NewTimer(3 * time.Second) 
+func runTimer(message structs.Message) {
+	timer := time.NewTimer(3 * time.Second)
+	clientPort := message.Ports[0] // 0 index is client port
 	for {
-		timer.Reset(5 *  time.Second) 
-		select{
-		case <- timer.C:
+		timer.Reset(5 * time.Second)
+		select {
+		case <-timer.C:
 			// ACKMap.Range(func(k, v interface{}) bool {
 			// 	fmt.Println("range (): ", k, v)
 			// 	return true
-			// })	
-			_, locked:= ACKMap.Load(int(message.RecordIndex))
-			// fmt.Println(locked)
-			if locked{
+			// })
+			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
+			if ACKMapClientRecords != nil {
+				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord)) - 1]
+				if finalRecord.Acked {
+					fmt.Println("No timeout for request by ", message.Ports[0])
+					return
+				}
 				fmt.Println("Timeout, resending message")
 				helper.SendMessage(message)
-			} else {
-				return
 			}
 		}
 	}
 }
 
-
-
 // Send append request to primary chunk server and wait
 func sendChunkAppend(message structs.Message) {
-	fmt.Println("Processing append request to primary chunk server")
+	// fmt.Println("Processing append request to primary chunk server")
 
 	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
 	message.Forward()
@@ -171,8 +184,7 @@ func confirmWrite(message structs.Message) {
 	fmt.Println("Confirming write request to primary chunk server")
 	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
 	message.Forward()
-	message.MessageType = helper.DATA_COMMIT
-
+	message.SetMessageType(helper.DATA_COMMIT)
 	// HTTP Request to Primary Chunk
 	fmt.Println("Sending append request to Primary Chunk Server")
 	helper.SendMessage(message)
@@ -198,11 +210,12 @@ func confirmWrite(message structs.Message) {
 
 }
 
-func finishAppend(message structs.Message){
-	ACKMap.Delete(int(message.RecordIndex))
+func finishAppend(message structs.Message) {
+	clientPort := message.Ports[0] // 0 index is client port
+	ACKMapClientRecords, _ := ACKMap.Load(clientPort) // 0 index is client port
+	ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex].SetAcked(true)
+	ACKMap.Store(clientPort, ACKMapClientRecords)
 }
-
-
 
 func InitClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
 	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
