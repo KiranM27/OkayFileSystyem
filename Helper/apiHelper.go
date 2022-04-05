@@ -33,8 +33,8 @@ func SendMessage(message structs.Message) { // V2 takes in a Message object dire
 
 }
 
-func SendRep(repMsg structs.RepMsg){
-	portNo := repMsg.TargetCS
+func SendRep(repMsg structs.RepMsg, receiver int){
+	portNo := receiver
 	request_url := BASE_URL + ":" + strconv.Itoa(portNo) + "/replicate"
 	messageJSON, _ := json.Marshal(repMsg)
 	response, err := http.Post(request_url, "application/json", bytes.NewBuffer(messageJSON))

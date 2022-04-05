@@ -325,7 +325,7 @@ func startReplicate(chunkServerId int) {
 	// TODO - New SendMessage for Replication Message
 	for _, replicationMsgs := range temporaryReplicationMap {
 		for _, repMessage := range replicationMsgs {
-			go helper.SendRep(repMessage) // need new helper function for rep msg
+			go helper.SendRep(repMessage, repMessage.TargetCS) // need new helper function for rep msg
 		}
 	}
 }
