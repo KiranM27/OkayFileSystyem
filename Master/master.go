@@ -64,6 +64,7 @@ func listen(nodePid int, portNo int) {
 	// 	}
 	// }))
 	router.POST("/message", postMessageHandler)
+	router.POST("/replicate", repMessageHandler)
 	// TODO: ADD REPLICATION ROUTE + REPLICATION HANDLER
 
 	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)
@@ -96,6 +97,23 @@ func postMessageHandler(context *gin.Context) {
 	}
 }
 
+func repMessageHandler(context *gin.Context) {
+	var repMsg structs.RepMsg
+
+	// Call BindJSON to bind the received JSON to message.
+	if err := context.BindJSON(&repMsg); err != nil {
+		fmt.Println("Invalid message object received.", err)
+		return
+	}
+	context.IndentedJSON(http.StatusOK, repMsg.MessageType+" Received")
+	fmt.Println("---------- Received Replication Message: ", repMsg.MessageType, " ----------")
+
+	switch repMsg.MessageType  {
+	case helper.ACK_REPLICATION:
+		receiveReplicationACK(repMsg)
+	}
+}
+
 func appendMessageHandler(message structs.Message) {
 	fmt.Println("Before Sending")
 	if _, ok := metaData.fileIdToChunkId[message.Filename]; !ok {
@@ -117,7 +135,6 @@ func fileNotNew(message structs.Message) {
 	messagePorts = append([]int{messagePorts[0]}, metaData.chunkIdToChunkserver[chunkId]...)
 	// [C, P, S1, S2]
 	if len(messagePorts) != 4 { // doesn't reply to client as file creation is ongoing.
-		fmt.Println("Node " + strconv.Itoa(message.Ports[0]) + " just got REJECTED ______________________________________________________________________________")
 		return
 	} 
 
@@ -292,7 +309,7 @@ func startReplicate(chunkServerId int) {
 
 		// create new replication message
 		newReplication := structs.RepMsg{
-			Index:       len(metaData.replicationMap[replicateServer]) + 1, // race condition when getting length. Not a good idea.
+			Index:       len(metaData.replicationMap[replicateServer]), 
 			MessageType: helper.REPLICATE,
 			ChunkId:     chunkId, // Comment - use this ineted of index
 			Sources:     sourceServers,
@@ -404,13 +421,6 @@ func main() {
 	metaData.chunkIdToOffset = make(map[string]int64)
 	metaData.replicationMap = make(map[int][]structs.RepMsg)
 	metaData.initialiseACKMap()
-	//metaData.printACKMap()
-
-	// create dummy data
-	// metaData.fileIdToChunkId["test.txt"] = []string{"test_c0"}
-	// metaData.chunkIdToChunkserver["test_c0"] = []int{8081, 8082, 8083}
-	// offset := int64(0)
-	// metaData.chunkIdToOffset["test_c0"] = offset
 
 	go chunkServer.ChunkServer(1, 8081)
 	go chunkServer.ChunkServer(2, 8082)

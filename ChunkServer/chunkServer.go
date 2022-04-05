@@ -78,8 +78,11 @@ func repMessageHandler(context *gin.Context) {
 
 	switch repMsg.MessageType  {
 	case helper.REPLICATE:
+		// Send REP_DATA_REQ to the concernign CS
 	case helper.REP_DATA_REQUEST:
+		// Read whole chunk and send REP_DATA_REPLY
 	case helper.REP_DATA_REPLY:
+		// Take data from call, create a new file, write data and then send ACK_REPPLICAION to master
 	}
 }
 
