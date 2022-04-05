@@ -6,15 +6,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
-	//client "oks/Client"
+	"errors"
 	"math/rand"
 	chunkServer "oks/ChunkServer"
 	helper "oks/Helper"
 	structs "oks/Structs"
 	"reflect"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 var metaData MetaData
@@ -58,15 +58,8 @@ type Port struct {
 
 func listen(nodePid int, portNo int) {
 	router := gin.Default()
-	// router.Use(gin.CustomRecovery(func (c *gin.Context, recovered interface{}){
-	// 	if err, ok := recovered.(string); ok {
-	// 		c.String(http.StatusInternalServerError, fmt.Sprintf("error: %s", err))
-	// 	}
-	// }))
 	router.POST("/message", postMessageHandler)
 	router.POST("/replicate", repMessageHandler)
-	// TODO: ADD REPLICATION ROUTE + REPLICATION HANDLER
-
 	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)
 	router.Run("localhost:" + strconv.Itoa(portNo))
 }
@@ -108,7 +101,7 @@ func repMessageHandler(context *gin.Context) {
 	context.IndentedJSON(http.StatusOK, repMsg.MessageType+" Received")
 	fmt.Println("---------- Received Replication Message: ", repMsg.MessageType, " ----------")
 
-	switch repMsg.MessageType  {
+	switch repMsg.MessageType {
 	case helper.ACK_REPLICATION:
 		receiveReplicationACK(repMsg)
 	}
@@ -136,7 +129,7 @@ func fileNotNew(message structs.Message) {
 	// [C, P, S1, S2]
 	if len(messagePorts) != 4 { // doesn't reply to client as file creation is ongoing.
 		return
-	} 
+	}
 
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
@@ -227,6 +220,7 @@ func ackChunkCreate(message structs.Message) {
 	metaData.chunkIdToOffset[message.ChunkId] = new_offset
 	lock.Unlock()
 }
+
 func (m heartState) String() string {
 	return [...]string{"START", "PENDING", "ALIVE", "DEAD"}[m]
 }
@@ -242,23 +236,25 @@ func sendHeartbeat() {
 			case Start: // For the first heartbeat
 				metaData.heartBeatAck.Store(i, Pending)
 				heartbeatMsg := structs.Message{
-					MessageType:    helper.HEARTBEAT,
-					Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
-					Pointer:        1,
+					MessageType: helper.HEARTBEAT,
+					Ports:       []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
+					Pointer:     1,
 				}
 				go helper.SendMessage(heartbeatMsg)
 			case Pending: // No reply from the previous heartbeat, consider the chunk server dead
+				// TODO: SEND HERE
+				go startReplicate(i) // give the port number to function
 				metaData.heartBeatAck.Store(i, Dead)
 			case Alive: // Successfully received ack from previous heartbeat, send next heartbeat
 				metaData.heartBeatAck.Store(i, Pending)
 				heartbeatMsg := structs.Message{
-					MessageType:    helper.HEARTBEAT,
-					Ports:          []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
-					Pointer:        1,
+					MessageType: helper.HEARTBEAT,
+					Ports:       []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
+					Pointer:     1,
 				}
 				go helper.SendMessage(heartbeatMsg)
 			case Dead: // Chunk server is dead, replicate server
-				go startReplicate(i) // give the port number to function
+				fmt.Println(i, " is dead!")
 			}
 
 		}
@@ -267,21 +263,24 @@ func sendHeartbeat() {
 	}
 }
 
-func startReplicate(chunkServerId int) {
+func startReplicate(chunkServerId int) error {
 	lock.Lock()
+	fmt.Println("YOOOOOOOOOOOOOOOOOOOOOOO I AM STARTING REPLICATION YOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
 	temporaryReplicationMap := make(map[int][]structs.RepMsg)
 
 	// 3a - Get the list of chunks in the failed chunk server
-	chunkIdArray := metaData.chunkServerToChunkId[chunkServerId]
+	failedChunkIds := metaData.chunkServerToChunkId[chunkServerId]
 
 	// 3e - Remove chunkServerId from the metadata first
-	for _, chunkId := range chunkIdArray { // for each chunk in the failed server
-		for idx, serverId := range metaData.chunkIdToChunkserver[chunkId] { // iterate through list of chunk servers associated with chunk id
+	for _, failedChunkId := range failedChunkIds { // for each chunk in the failed server
+		for idx, serverId := range metaData.chunkIdToChunkserver[failedChunkId] { // iterate through list of chunk servers associated with chunk id
 			if serverId == chunkServerId { // if this is the chunk server id, remove it
-				if len(metaData.chunkIdToChunkserver[chunkId]) == 1 { // edge case, only element in list
-					metaData.chunkIdToChunkserver[chunkId] = metaData.chunkIdToChunkserver[chunkId][:1]
+				if len(metaData.chunkIdToChunkserver[failedChunkId]) == 1 { // edge case, only element in list
+					return errors.New("Write Failed for Replication of chunk " + failedChunkId)
 				} else {
-					metaData.chunkIdToChunkserver[chunkId] = append(metaData.chunkIdToChunkserver[chunkId][:idx], metaData.chunkIdToChunkserver[chunkId][idx+1:]...)
+					fmt.Println("REMOVING THE FAILED CHUNK NOW")
+					metaData.chunkIdToChunkserver[failedChunkId] = append(metaData.chunkIdToChunkserver[failedChunkId][:idx], metaData.chunkIdToChunkserver[failedChunkId][idx+1:]...)
+					fmt.Println(metaData.chunkIdToChunkserver[failedChunkId])
 				}
 				break
 			}
@@ -289,29 +288,43 @@ func startReplicate(chunkServerId int) {
 	}
 
 	// Get metadata needed 3b
-	for _, chunkId := range chunkIdArray { // iterate through chunk ids from failed chunk server
-		sourceServers := metaData.chunkIdToChunkserver[chunkId] // get list of remaining chunk servers associated to chunk ID
+	for _, failedChunkId := range failedChunkIds { // iterate through chunk ids from failed chunk server
+		sourceServers := metaData.chunkIdToChunkserver[failedChunkId] // get list of remaining chunk servers associated to chunk ID
 
 		// 3c - Get available servers we can replicate to
 		// Comment: Do we have to know every available one? Once we find one lets just pick it and end.
 		// availableServers := []int{}
 		var replicateServer int
-		for chunkServerId := range metaData.chunkServerToChunkId { // get global list of chunk servers
-			if !Contains(sourceServers, chunkServerId) { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
+		metaData.heartBeatAck.Range(func(replicateCandidate, replicateCandidateStatus interface{}) bool {
+			fmt.Printf("Candidate: %v, Status: %v\n", replicateCandidate, replicateCandidateStatus)
+			if !Contains(sourceServers, replicateCandidate.(int)) && replicateCandidateStatus.(heartState) != Dead { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
 				// availableServers = append(availableServers, chunkServerKey)
-				replicateServer = chunkServerId
-				break
+				// replicateServer = targetCS~
+				replicateServer = replicateCandidate.(int)
+				fmt.Printf("TARGET SERVER IS %v\n", replicateServer)
 			}
-		}
+			return true
+		})
+
+		// for metaData.heartBeatAck.Range() { // get global list of chunk servers
+		// 	replicateServerStatus, _ := metaData.heartBeatAck.Load(replicateServer)
+		// 	fmt.Println("Current candidate is ", replicateServer, " - sourceServers ", sourceServers, " - contains result - ", Contains(sourceServers, replicateServer) )
+		// 	if !Contains(sourceServers, replicateServer) && replicateServerStatus == Alive { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
+		// 		// availableServers = append(availableServers, chunkServerKey)
+		// 		// replicateServer = targetCS
+		// 		fmt.Printf("TARGET SERVER IS %v\n", replicateServer)
+		// 		break
+		// 	}
+		// }
 		// replicateServer := availableServers[0] // just gest the first one lol
 
 		// 3d
 
 		// create new replication message
 		newReplication := structs.RepMsg{
-			Index:       len(metaData.replicationMap[replicateServer]), 
+			Index:       len(metaData.replicationMap[replicateServer]),
 			MessageType: helper.REPLICATE,
-			ChunkId:     chunkId, // Comment - use this ineted of index
+			ChunkId:     failedChunkId, // Comment - use this ineted of index
 			Sources:     sourceServers,
 			TargetCS:    replicateServer,
 		}
@@ -325,9 +338,11 @@ func startReplicate(chunkServerId int) {
 	// TODO - New SendMessage for Replication Message
 	for _, replicationMsgs := range temporaryReplicationMap {
 		for _, repMessage := range replicationMsgs {
+			fmt.Println(repMessage.ChunkId, repMessage.TargetCS)
 			go helper.SendRep(repMessage, repMessage.TargetCS) // need new helper function for rep msg
 		}
 	}
+	return nil
 }
 
 // 3h

@@ -68,6 +68,7 @@ func postMessageHandler(context *gin.Context) {
 
 func repMessageHandler(context *gin.Context) {
 	var repMsg structs.RepMsg
+	portNo := strconv.Itoa(repMsg.TargetCS)
 
 	// Call BindJSON to bind the received JSON to message.
 	if err := context.BindJSON(&repMsg); err != nil {
@@ -76,6 +77,12 @@ func repMessageHandler(context *gin.Context) {
 	}
 	context.IndentedJSON(http.StatusOK, repMsg.MessageType+" Received")
 	fmt.Println("---------- Received Replication Message: ", repMsg.MessageType, " ----------")
+
+	isNodealive, _ := aliveMap.Load(portNo)
+	if isNodealive == false {
+		fmt.Println("Node " + portNo + " is dead and will not be responding to the incoming request.")
+		return
+	}
 
 	switch repMsg.MessageType {
 	case helper.REPLICATE:
@@ -161,6 +168,14 @@ func reviveHandler(message structs.Message) {
 	message.Reply()
 	helper.SendMessage(message)
 	fmt.Println("Node " + portNo + " is now back up!")
+}
+
+func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
+	// set timer message?
+	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
+	helper.SendRep(repMsg, repMsg.Sources[chunkServerIdx])
+	// ACKMap.Store(repMsg.TargetCS, )
+	// go runTimer(repMsg, chunkServerIdx)
 }
 
 func repDataRequestHandler(repMsg structs.RepMsg) {
@@ -264,13 +279,6 @@ func createChunk(portNo int, chunkId string) {
 
 func ChunkServer(nodePid int, portNo int) {
 	go listen(nodePid, portNo)
-}
-
-func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
-	// set timer message?
-	helper.SendRep(repMsg, repMsg.Sources[chunkServerIdx])
-	// ACKMap.Store(repMsg.TargetCS, )
-	// go runTimer(repMsg, chunkServerIdx)
 }
 
 // var ACKMap sync.Map
