@@ -65,6 +65,24 @@ func postMessageHandler(context *gin.Context) {
 	}
 }
 
+func repMessageHandler(context *gin.Context) {
+	var repMsg structs.RepMsg
+
+	// Call BindJSON to bind the received JSON to message.
+	if err := context.BindJSON(&repMsg); err != nil {
+		fmt.Println("Invalid message object received.", err)
+		return
+	}
+	context.IndentedJSON(http.StatusOK, repMsg.MessageType+" Received")
+	fmt.Println("---------- Received Replication Message: ", repMsg.MessageType, " ----------")
+
+	switch repMsg.MessageType  {
+	case helper.REPLICATE:
+	case helper.REP_DATA_REQUEST:
+	case helper.REP_DATA_REPLY:
+	}
+}
+
 func ACKHandler(message structs.Message) {
 	if message.Pointer != 0 {
 		message.Reply()
@@ -183,6 +201,7 @@ func listen(nodePid int, portNo int) {
 
 	router.GET("/", landingPageHandler)
 	router.POST("/message", postMessageHandler)
+	router.POST("/replicate", repMessageHandler)
 
 	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)
 	router.Run("localhost:" + strconv.Itoa(portNo))

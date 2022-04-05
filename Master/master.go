@@ -18,6 +18,7 @@ import (
 )
 
 var metaData MetaData
+var lock sync.Mutex
 
 type heartState int
 
@@ -46,17 +47,11 @@ type MetaData struct {
 	// {8080:{f1_c0}}
 	chunkServerToChunkId map[int][]string
 
-	replicationMap map[int][]RepMsg
+	replicationMap map[int][]structs.RepMsg
 }
 
 // Placeholder - TODO: Add proper replication message struct to message.go
-type RepMsg struct {
-	index       int
-	messageType string
-	chunkId     string
-	sources     []int
-	targetCS    int
-}
+
 
 type Port struct {
 	portToInt map[string]int
@@ -106,11 +101,11 @@ func appendMessageHandler(message structs.Message) {
 	fmt.Println("Before Sending")
 	if _, ok := metaData.fileIdToChunkId[message.Filename]; !ok {
 		// if file does not exist in metaData, create a new entry
-		fmt.Println("Master received new file from Client")
+		// fmt.Println("Master received new file from Client")
 		newFileAppend(message)
 	} else {
 		// if file is not new
-		fmt.Println("Master received old file from Client")
+		// fmt.Println("Master received old file from Client")
 		fileNotNew(message)
 
 	}
@@ -136,19 +131,22 @@ func fileNotNew(message structs.Message) {
 		ChunkOffset:    metaData.chunkIdToOffset[chunkId],
 		RecordIndex:    message.RecordIndex,
 	}
-	fmt.Println("Master sending request to primary chunkserver")
+	// fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
 
 	// increment offset
+	lock.Lock()
 	metaData.chunkIdToOffset[chunkId] += message1.PayloadSize
+	lock.Unlock()
 }
 
 // Client wants to append to a new file
 func newFileAppend(message structs.Message) {
 	// create new entry in MetaData
+	lock.Lock()
 	chunkId := message.Filename + "_c0"
 	metaData.fileIdToChunkId[message.Filename] = []string{chunkId}
-
+	lock.Unlock()
 	// ask 3 chunkserver to create chunks
 	fmt.Println("Master choosing 3 chunkservers")
 	new_chunkServer := choose_3_random_chunkServers()
@@ -176,11 +174,11 @@ func newFileAppend(message structs.Message) {
 // after receiving ack from primary, approve request for client
 func ackChunkCreate(message structs.Message) {
 	messagePorts := message.Ports // [C, M, P, S1, S2]
-	fmt.Println("[C, M, P, S1, S2]", messagePorts)
+	// fmt.Println("[C, M, P, S1, S2]", messagePorts)
 	messagePorts = append([]int{messagePorts[0]}, messagePorts[2:]...) //[C, P, S1, S2]
-	fmt.Println("CHUNK CREATED - PRIOR UPDATING PORTS [C, P, S1, S2]", messagePorts)
+	// fmt.Println("CHUNK CREATED - PRIOR UPDATING PORTS [C, P, S1, S2]", messagePorts)
 	chunkServers := messagePorts[1:]
-	fmt.Println(chunkServers)
+	// fmt.Println(chunkServers)
 
 	message1 := structs.Message{
 		MessageType:    helper.DATA_APPEND,
@@ -198,6 +196,7 @@ func ackChunkCreate(message structs.Message) {
 	helper.SendMessage(message1)
 
 	//record in metaData
+	lock.Lock()
 	for _, v := range chunkServers {
 		metaData.chunkServerToChunkId[v] = append(metaData.chunkServerToChunkId[v], message.ChunkId)
 	}
@@ -207,6 +206,7 @@ func ackChunkCreate(message structs.Message) {
 	// increment offset
 	new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
 	metaData.chunkIdToOffset[message.ChunkId] = new_offset
+	lock.Unlock()
 }
 func (m heartState) String() string {
 	return [...]string{"START", "PENDING", "ALIVE", "DEAD"}[m]
@@ -216,11 +216,7 @@ func (m heartState) String() string {
 func sendHeartbeat() {
 
 	for {
-		metaData.printACKMap()
-<<<<<<< HEAD
-
-=======
->>>>>>> efc3a69202747ecdbd99b9273e1e64ee5b7e2117
+		// metaData.printACKMap()
 		for i := 8081; i <= 8085; i++ {
 			currentHeartState, _ := metaData.heartBeatAck.Load(i)
 			switch currentHeartState {
@@ -267,8 +263,8 @@ func sendHeartbeat() {
 }
 
 func startReplicate(chunkServerId int) {
-
-	temporaryReplicationMap := make(map[int][]RepMsg)
+	lock.Lock()
+	temporaryReplicationMap := make(map[int][]structs.RepMsg)
 
 	// 3a - Get the list of chunks in the failed chunk server
 	chunkIdArray := metaData.chunkServerToChunkId[chunkServerId]
@@ -292,56 +288,61 @@ func startReplicate(chunkServerId int) {
 		sourceServers := metaData.chunkIdToChunkserver[chunkId] // get list of remaining chunk servers associated to chunk ID
 
 		// 3c - Get available servers we can replicate to
-		availableServers := []int{}
-		for chunkServerKey, _ := range metaData.chunkServerToChunkId { // get global list of chunk servers
-			if !contains(sourceServers, chunkServerKey) { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
-				availableServers = append(availableServers, chunkServerKey)
+		// Comment: Do we have to know every available one? Once we find one lets just pick it and end. 
+		// availableServers := []int{}
+		var replicateServer int
+		for chunkServerId := range metaData.chunkServerToChunkId { // get global list of chunk servers
+			if !Contains(sourceServers, chunkServerId) { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
+				// availableServers = append(availableServers, chunkServerKey)
+				replicateServer = chunkServerId
+				break
 			}
 		}
-
+		// replicateServer := availableServers[0] // just gest the first one lol
+		
 		// 3d
-		replicateServer := availableServers[0] // just get the first one lol
 
 		// create new replication message
-		newReplication := RepMsg{
-			index:       len(metaData.replicationMap[replicateServer]) + 1,
-			messageType: helper.REPLICATE,
-			chunkId:     chunkId,
-			sources:     sourceServers,
-			targetCS:    replicateServer,
+		newReplication := structs.RepMsg{
+			Index:       len(metaData.replicationMap[replicateServer]) + 1, // race condition when getting length. Not a good idea.
+			MessageType: helper.REPLICATE,
+			ChunkId:     chunkId, // Comment - use this ineted of index
+			Sources:     sourceServers,
+			TargetCS:    replicateServer,
 		}
-
+		
 		// 3f - add replication request to replication map
 		metaData.replicationMap[replicateServer] = append(metaData.replicationMap[replicateServer], newReplication)
 		temporaryReplicationMap[replicateServer] = append(temporaryReplicationMap[replicateServer], newReplication)
 	}
-
+	lock.Unlock()
 	// 3g - Send to target [NOT DONE]
 	// TODO - New SendMessage for Replication Message
-	for targetServer, replicationMsgs := range temporaryReplicationMap {
-		for message := range replicationMsgs {
-			go helper.SendMessage(RepMsg{}, targetServer) // need new helper function for rep msg
+	for _, replicationMsgs := range temporaryReplicationMap {
+		for _,repMessage := range replicationMsgs {
+			go helper.SendRep(repMessage) // need new helper function for rep msg
 		}
 	}
 }
 
 // 3h
-func receiveReplicationACK(repMsg RepMsg) {
-
-	for idx, repRequest := range metaData.replicationMap[repMsg.targetCS] {
-		if repRequest.index == repMsg.index {
-			if len(metaData.replicationMap[repMsg.targetCS]) == 1 { // edge case, only request in replication map
-				metaData.replicationMap[repMsg.targetCS] = metaData.replicationMap[repMsg.targetCS][:1]
+func receiveReplicationACK(RepMsg structs.RepMsg) {
+	lock.Lock()
+	defer lock.Unlock()
+	for idx, repRequest := range metaData.replicationMap[RepMsg.TargetCS] {
+		if repRequest.Index == RepMsg.Index {
+			if len(metaData.replicationMap[RepMsg.TargetCS]) == 1 { // edge case, only request in replication map
+				metaData.replicationMap[RepMsg.TargetCS] = metaData.replicationMap[RepMsg.TargetCS][:1]
 			} else {
-				metaData.replicationMap[repMsg.targetCS] = append(metaData.replicationMap[repMsg.targetCS][:idx], metaData.replicationMap[repMsg.targetCS][idx+1:]...)
+				metaData.replicationMap[RepMsg.TargetCS] = append(metaData.replicationMap[RepMsg.TargetCS][:idx], metaData.replicationMap[RepMsg.TargetCS][idx+1:]...)
 			}
 			break
 		}
 	}
 
 	// 3i - update metadata
-	chunkServerId := repMsg.targetCS
-	chunkId := repMsg.chunkId
+	chunkServerId := RepMsg.TargetCS
+	chunkId := RepMsg.ChunkId
 
 	// Update {chunkId: {chunkserver1, chunkserver2, ...}}
 	metaData.chunkIdToChunkserver[chunkId] = append(metaData.chunkIdToChunkserver[chunkId], chunkServerId)
@@ -355,7 +356,6 @@ func receiveHeartbeatACK(message structs.Message) {
 	metaData.heartBeatAck.Store(message.Ports[1], Alive)
 }
 
-// @ts-ignore
 func (m *MetaData) printACKMap() {
 	//fmt.Println(m.heartBeatAck)
 	// Ignore any error from here, works just fine
@@ -414,7 +414,7 @@ func main() {
 	metaData.chunkIdToChunkserver = make(map[string][]int)
 	metaData.chunkServerToChunkId = make(map[int][]string)
 	metaData.chunkIdToOffset = make(map[string]int64)
-	metaData.replicationMap = make(map[int][]RepMsg)
+	metaData.replicationMap = make(map[int][]structs.RepMsg)
 	metaData.initialiseACKMap()
 	//metaData.printACKMap()
 

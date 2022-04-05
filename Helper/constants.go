@@ -17,7 +17,9 @@ const (
 	KILL_YOURSELF = "KILL_YOURSELF" // ask chunk to not respond to any messages.
 	REVIVE        = "REVIVE"        // ask chunk to come back up and start responding to messages.
 	REPLICATE     = "REPLICATE"     // ask chunk (server) to replicate chunk (the file)
-
+	REP_DATA_REQUEST= "REP_DATA_REQUEST"
+	REP_DATA_REPLY= "REP_DATA_REPLY"
+	
 	ACK_APPEND       = "ACK_APPEND"       // chunk server ACK that data to be appened has been received
 	ACK_COMMIT       = "ACK_COMMIT"       // chunk server ACK that data has been committed
 	ACK_CHUNK_CREATE = "ACK_CHUNK_CREATE" // chunk server ACK that new chunk has been created
@@ -35,6 +37,8 @@ const (
 
 	// Unicode 1 Byte character that is used for padding
 	PADDING = "~"
+
+	REP_COUNT = 3 // not tested fully with prev code 
 )
 
 var (
