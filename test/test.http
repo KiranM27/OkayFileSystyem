@@ -1,0 +1,15 @@
+POST http://localhost:8082/message HTTP/1.1
+content-type: application/json
+
+{
+    "MessageType": "KILL_YOURSELF",
+    "Ports": [8080, 8082],
+    "Pointer": 1,
+    "SourceFilename": "hello.txt",
+    "Filename": "hello_chunk.txt",
+    "ChunkId": "000",
+    "Payload": "This is poayloaf",
+    "PayloadSize" : 25,
+    "ChunkOffset": 80,
+    "RecordIndex": 4
+}

@@ -173,6 +173,7 @@ func reviveHandler(message structs.Message) {
 func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
 	// set timer message?
 	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
+	fmt.Println("____________________ Source: ", repMsg.Sources, "________________________")
 	helper.SendRep(repMsg, repMsg.Sources[chunkServerIdx])
 	// ACKMap.Store(repMsg.TargetCS, )
 	// go runTimer(repMsg, chunkServerIdx)
@@ -180,12 +181,13 @@ func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
 
 func repDataRequestHandler(repMsg structs.RepMsg) {
 	chunkId := repMsg.ChunkId
-	currentPort := repMsg.TargetCS
+	chunkSourcePort := repMsg.Sources[0]
 	pwd, _ := os.Getwd()
 	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
-	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
+	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(chunkSourcePort))
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	content := helper.ReadFile(chunkPath)
+	fmt.Println("")
 	repMsg.SetMessageType(helper.REP_DATA_REPLY)
 	repMsg.SetPayload(content)
 	helper.SendRep(repMsg, repMsg.TargetCS)

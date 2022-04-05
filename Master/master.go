@@ -302,6 +302,7 @@ func startReplicate(chunkServerId int) error {
 				// replicateServer = targetCS~
 				replicateServer = replicateCandidate.(int)
 				fmt.Printf("TARGET SERVER IS %v\n", replicateServer)
+				return false
 			}
 			return true
 		})
