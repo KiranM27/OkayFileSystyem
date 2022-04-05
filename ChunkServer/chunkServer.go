@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -80,7 +79,7 @@ func repMessageHandler(context *gin.Context) {
 	case helper.REPLICATE:
 		// Send REP_DATA_REQ to the concernign CS
 	case helper.REP_DATA_REQUEST:
-		// Read whole chunk and send REP_DATA_REPLY
+		go repDataRequestHandler(repMsg)
 	case helper.REP_DATA_REPLY:
 		// Take data from call, create a new file, write data and then send ACK_REPPLICAION to master
 	}
@@ -159,6 +158,19 @@ func reviveHandler(message structs.Message) {
 	message.Reply()
 	helper.SendMessage(message)
 	fmt.Println("Node " + portNo + " is now back up!")
+}
+
+func repDataRequestHandler(repMsg structs.RepMsg) {
+	chunkId := repMsg.ChunkId
+	currentPort := repMsg.TargetCS
+	pwd, _ := os.Getwd()
+	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
+	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
+	content := helper.ReadFile(chunkPath)
+	repMsg.SetMessageType(helper.REP_DATA_REPLY)
+	repMsg.SetPayload(content)
+	helper.SendRep(repMsg)
 }
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {

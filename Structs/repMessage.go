@@ -9,3 +9,13 @@ type RepMsg struct {
 	Payload 	string
 }
 
+func (r *RepMsg) SetPayload(payload string) {
+	r.Payload = payload
+}
+
+func (r *RepMsg) SetMessageType(messageType string) {
+	r.MessageType = messageType
+}
+
+
+

@@ -37,6 +37,7 @@ const (
 
 	// Unicode 1 Byte character that is used for padding
 	PADDING = "~"
+	NULL = "NULL"
 
 	REP_COUNT = 3 // not tested fully with prev code 
 )
