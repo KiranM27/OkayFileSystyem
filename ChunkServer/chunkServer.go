@@ -79,10 +79,11 @@ func repMessageHandler(context *gin.Context) {
 
 	switch repMsg.MessageType {
 	case helper.REPLICATE:
-		// Send REP_DATA_REQ to the concernign CS
+		go replicateHandler(repMsg, 0)
 	case helper.REP_DATA_REQUEST:
 		go repDataRequestHandler(repMsg)
 	case helper.REP_DATA_REPLY:
+		go repDataReplyHandler(repMsg)
 		// Take data from call, create a new file, write data and then send ACK_REPPLICAION to master
 	}
 }
@@ -173,6 +174,33 @@ func repDataRequestHandler(repMsg structs.RepMsg) {
 	repMsg.SetMessageType(helper.REP_DATA_REPLY)
 	repMsg.SetPayload(content)
 	helper.SendRep(repMsg, repMsg.TargetCS)
+}
+
+func repDataReplyHandler(repMsg structs.RepMsg) error {
+	chunkId := repMsg.ChunkId
+	currentPort := repMsg.TargetCS
+	pwd, _ := os.Getwd()
+	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
+	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
+
+	createChunk(repMsg.TargetCS, chunkId)
+	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	defer fh.Close()
+	// write data
+	writeDataBytes := []byte(repMsg.Payload)
+	if _, err := fh.Write(writeDataBytes); err != nil {
+		fmt.Println(err)
+		return errors.New("Write Failed for Replication of chunk " + chunkId)
+	}
+
+	repMsg.SetMessageType(helper.ACK_REPLICATION)
+	helper.SendRep(repMsg, helper.MASTER_SERVER_PORT)
+	return nil
 }
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
