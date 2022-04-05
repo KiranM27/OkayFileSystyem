@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	// "time"
 	"github.com/gin-gonic/gin"
 )
 
@@ -235,3 +236,21 @@ func createChunk(portNo int, chunkId string) {
 func ChunkServer(nodePid int, portNo int) {
 	go listen(nodePid, portNo)
 }
+
+func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
+	// set timer message? 
+	helper.SendRep(repMsg, repMsg.Sources[chunkServerIdx])
+	// ACKMap.Store(repMsg.TargetCS, )
+	// go runTimer(repMsg, chunkServerIdx)
+}
+
+// var ACKMap sync.Map
+
+// func runTimer(repMsg structs.RepMsg,chunkServerIdx int){
+// 	t := time.After(100 * time.Second)
+// 	select{
+// 	case <- t:
+// 		if 
+// 		fmt.Printf("%v: Replication Timeout, trying next server", repMsg.TargetCS) 
+// 	}
+// }
