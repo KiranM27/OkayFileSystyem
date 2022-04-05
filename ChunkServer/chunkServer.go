@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
 	// "time"
 	"github.com/gin-gonic/gin"
 )
@@ -76,7 +77,7 @@ func repMessageHandler(context *gin.Context) {
 	context.IndentedJSON(http.StatusOK, repMsg.MessageType+" Received")
 	fmt.Println("---------- Received Replication Message: ", repMsg.MessageType, " ----------")
 
-	switch repMsg.MessageType  {
+	switch repMsg.MessageType {
 	case helper.REPLICATE:
 		// Send REP_DATA_REQ to the concernign CS
 	case helper.REP_DATA_REQUEST:
@@ -171,7 +172,7 @@ func repDataRequestHandler(repMsg structs.RepMsg) {
 	content := helper.ReadFile(chunkPath)
 	repMsg.SetMessageType(helper.REP_DATA_REPLY)
 	repMsg.SetPayload(content)
-	helper.SendRep(repMsg)
+	helper.SendRep(repMsg, repMsg.TargetCS)
 }
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
@@ -238,7 +239,7 @@ func ChunkServer(nodePid int, portNo int) {
 }
 
 func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
-	// set timer message? 
+	// set timer message?
 	helper.SendRep(repMsg, repMsg.Sources[chunkServerIdx])
 	// ACKMap.Store(repMsg.TargetCS, )
 	// go runTimer(repMsg, chunkServerIdx)
@@ -250,7 +251,7 @@ func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
 // 	t := time.After(100 * time.Second)
 // 	select{
 // 	case <- t:
-// 		if 
-// 		fmt.Printf("%v: Replication Timeout, trying next server", repMsg.TargetCS) 
+// 		if
+// 		fmt.Printf("%v: Replication Timeout, trying next server", repMsg.TargetCS)
 // 	}
 // }
