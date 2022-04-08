@@ -265,7 +265,6 @@ func sendHeartbeat() {
 
 func startReplicate(chunkServerId int) error {
 	lock.Lock()
-	fmt.Println("YOOOOOOOOOOOOOOOOOOOOOOO I AM STARTING REPLICATION YOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
 	temporaryReplicationMap := make(map[int][]structs.RepMsg)
 
 	// 3a - Get the list of chunks in the failed chunk server

@@ -245,7 +245,7 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 	}
 
 	writeDataBytes := []byte(writeData.(string))
-	_, err = fh.Seek(chunkOffset, 0)
+	_, err = fh.Seek(fileSize, 0)
 	if err != nil {
 		return errors.New("Error while seeking to UID " + uid)
 	}
