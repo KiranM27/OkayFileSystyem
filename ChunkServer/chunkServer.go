@@ -1,7 +1,8 @@
-package chunkServer
+package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	helper "oks/Helper"
@@ -150,7 +151,7 @@ func heartbeatHandler(message structs.Message) {
 func killYourselfHandler(message structs.Message) {
 	portNo := strconv.Itoa(message.Ports[message.Pointer])
 	fmt.Println("Kill message received by Node " + portNo)
-	dataPath := ".." + helper.DATA_DIR + "/" + portNo
+	dataPath := helper.DATA_DIR + "/" + portNo
 	absDataPath, _ := filepath.Abs(dataPath)
 	err := os.RemoveAll(absDataPath)
 	if err != nil {
@@ -183,7 +184,7 @@ func repDataRequestHandler(repMsg structs.RepMsg) {
 	chunkId := repMsg.ChunkId
 	chunkSourcePort := repMsg.Sources[0]
 	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	dataDirPath := filepath.Join(pwd, helper.DATA_DIR)
 	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(chunkSourcePort))
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	content := helper.ReadFile(chunkPath)
@@ -197,7 +198,7 @@ func repDataReplyHandler(repMsg structs.RepMsg) error {
 	chunkId := repMsg.ChunkId
 	currentPort := repMsg.TargetCS
 	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	dataDirPath := filepath.Join(pwd, "/"+helper.DATA_DIR)
 	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 
@@ -222,7 +223,7 @@ func repDataReplyHandler(repMsg structs.RepMsg) error {
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
 	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	dataDirPath := filepath.Join(pwd, helper.DATA_DIR)
 	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
@@ -271,7 +272,7 @@ func listen(nodePid int, portNo int) {
 
 func createChunk(portNo int, chunkId string) {
 	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	dataDirPath := filepath.Join(pwd, "/"+helper.DATA_DIR)
 	helper.CreateFolder(dataDirPath)
 	portDataDirPath := filepath.Join(dataDirPath, strconv.Itoa(portNo))
 	helper.CreateFolder(portDataDirPath)
@@ -293,3 +294,17 @@ func ChunkServer(nodePid int, portNo int) {
 // 		fmt.Printf("%v: Replication Timeout, trying next server", repMsg.TargetCS)
 // 	}
 // }
+
+func main(){
+	
+	fmt.Println("Chunk Hello!")
+	var nodePid_str string
+	var portNo_str string
+	flag.StringVar(&nodePid_str, "i", "nodePid", "Specify Chunk Server Id")
+	flag.StringVar(&portNo_str, "p", "portNumbber", "Speciy Chunk Server Port Number")
+	flag.Parse()
+	nodePid,_ := strconv.Atoi(nodePid_str)
+	portNo,_ := strconv.Atoi(portNo_str)
+	ChunkServer(nodePid, portNo)
+	for{}
+}

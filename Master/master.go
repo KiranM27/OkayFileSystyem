@@ -8,7 +8,7 @@ import (
 
 	"errors"
 	"math/rand"
-	chunkServer "oks/ChunkServer"
+	// chunkServer "oks/ChunkServer"
 	helper "oks/Helper"
 	structs "oks/Structs"
 	"reflect"
@@ -438,14 +438,16 @@ func main() {
 	metaData.replicationMap = make(map[int][]structs.RepMsg)
 	metaData.initialiseACKMap()
 
-	go chunkServer.ChunkServer(1, 8081)
-	go chunkServer.ChunkServer(2, 8082)
-	go chunkServer.ChunkServer(3, 8083)
-	go chunkServer.ChunkServer(4, 8084)
-	go chunkServer.ChunkServer(5, 8085)
+	// go chunkServer.ChunkServer(1, 8081)
+	// go chunkServer.ChunkServer(2, 8082)
+	// go chunkServer.ChunkServer(3, 8083)
+	// go chunkServer.ChunkServer(4, 8084)
+	// go chunkServer.ChunkServer(5, 8085)
+	fmt.Println("Master hello!")
 	go sendHeartbeat()
 	listen(0, 8080)
-
+	
+	
 }
 
 /*

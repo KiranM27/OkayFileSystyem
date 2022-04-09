@@ -1,16 +1,19 @@
-package client
+package main
+
 // Client works on only one append operration at a time !!
 
 import (
 	//"os"
+	"flag"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	helper "oks/Helper"
 	structs "oks/Structs"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 var ACKMap sync.Map
@@ -224,4 +227,22 @@ func InitClient(id int, portNumber int, sourceFilename string, OFSFilename strin
 	for {
 
 	}
+}
+
+func main(){
+	var id_str string
+	var portNumber_str string
+	var sourceFilename string
+	var OFSFilename string
+	flag.StringVar(&id_str, "i", "id", "Specify Client Id ")
+	flag.StringVar(&portNumber_str, "p", "portNumbber", "Speciy portNum")
+	flag.StringVar(&sourceFilename, "s", "sourceFilename", "Specify source file name")
+	flag.StringVar(&OFSFilename, "d", "OFSFilename", "Specify file name to be stored in OFS")
+	flag.Parse()
+	id,_ := strconv.Atoi(id_str)
+	portNumber, _ := strconv.Atoi(portNumber_str)
+	fmt.Println(id, portNumber, sourceFilename, OFSFilename)
+	InitClient(id, portNumber, sourceFilename, OFSFilename)
+	// fmt.Println("Client works")
+	// for{}
 }
