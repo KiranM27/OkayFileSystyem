@@ -1,14 +1,14 @@
 package structs
 
 type SuccessfulWrite struct {
-	start   int64
-	end     int64
+	Start   int64
+	End     int64
 }
 
 func GenerateSW(start int64, end int64) SuccessfulWrite {
 	SW := SuccessfulWrite{
-		start: start,
-		end:   end,
+		Start: start,
+		End:   end,
 	}
 	return SW
 }

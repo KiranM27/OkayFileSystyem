@@ -106,10 +106,10 @@ func repMessageHandler(context *gin.Context) {
 }
 
 func ackCommitHandler(message structs.Message) {
+	lock.Lock()
 	SWObj := structs.GenerateSW(message.ChunkOffset, message.ChunkOffset+message.PayloadSize)
 	metaData.successfulWrites[message.ChunkId] = append(metaData.successfulWrites[message.ChunkId], SWObj)
-	fmt.Println("SIZE OF SUCCESSFUL WRITES IS NOW ", len(metaData.successfulWrites[message.ChunkId]))
-	fmt.Println("FINAL ELEMENT IS ", metaData.successfulWrites[message.ChunkId][len(metaData.successfulWrites[message.ChunkId])-1])
+	lock.Unlock()
 }
 
 func appendMessageHandler(message structs.Message) {

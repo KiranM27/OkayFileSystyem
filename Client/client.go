@@ -2,7 +2,8 @@ package client
 // Client works on only one append operration at a time !!
 
 import (
-	//"os"
+	"os"
+	"path/filepath"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -52,13 +53,30 @@ func readHandler(context *gin.Context) {
 		fmt.Println("Invalid message object received.")
 		return
 	}
-	readChunk(readMsg)
-	context.IndentedJSON(http.StatusOK, "New placeholder")
+	content := readChunk(readMsg)
+	context.IndentedJSON(http.StatusOK, content)
 }
 
-func readChunk(readMsg structs.ReadMsg) {
-	
+func readChunk(readMsg structs.ReadMsg) string {
+	chunkId := readMsg.ChunkId
+	chunkSourcePort := readMsg.Sources[0]
+	pwd, _ := os.Getwd()
+	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(chunkSourcePort))
+	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
+	content := helper.ReadFile(chunkPath)
+	filteredOutput := filterContentBySW(content, readMsg.SuccessfulWrites)
+	return filteredOutput
+}
 
+func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrite) string {
+	_content := []byte(content)
+	var output []byte
+	for _, SW := range successfulWrites {
+		output = append(output, _content[SW.Start: SW.End]...)
+	}
+	filteredOutput := string(output)
+	return filteredOutput
 }
 
 // Send a request to Master that client wants to append

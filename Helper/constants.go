@@ -28,6 +28,8 @@ const (
 	ACK_REPLICATION  = "ACK_REPLICATION"  // chunk server ack after it has completed replication from another chunkserver
 
 	CREATE_NEW_CHUNK = "CREATE_NEW_CHUNK" // ask the master to create a new chunk
+	READ_REQ = "READ_REQ"
+	READ_RES = "READ_RES"
 
 	// Directories from root i.e.)
 	ROOT_DIR      = "OkayFileSystem" // Root dir
