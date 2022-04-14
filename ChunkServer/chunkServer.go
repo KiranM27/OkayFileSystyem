@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
 	// "time"
 	"github.com/gin-gonic/gin"
 )
@@ -95,6 +94,25 @@ func repMessageHandler(context *gin.Context) {
 	}
 }
 
+func readMsgHandler(context *gin.Context) {
+	var readMsg structs.ReadMsg
+
+	// Call BindJSON to bind the received JSON to message.
+	if err := context.BindJSON(&readMsg); err != nil {
+		fmt.Println("Invalid message object received.", err)
+		return
+	}
+	portNo := strconv.Itoa(readMsg.Sources[0])
+	isNodealive, _ := aliveMap.Load(portNo)
+	if isNodealive == false {
+		fmt.Println("Node " + portNo + " is dead and will not be responding to the incoming request.")
+		return
+	}
+
+	content := readReqHandler(readMsg)
+	context.IndentedJSON(http.StatusOK, content)
+}
+
 func ACKHandler(message structs.Message) {
 	if message.Pointer != 0 {
 		message.Reply()
@@ -174,7 +192,7 @@ func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
 	// set timer message?
 	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
 	fmt.Println("____________________ Source: ", repMsg.Sources, "________________________")
-	helper.SendRep(repMsg, repMsg.Sources[chunkServerIdx])
+	helper.SendRepMsg(repMsg, repMsg.Sources[chunkServerIdx])
 	// ACKMap.Store(repMsg.TargetCS, )
 	// go runTimer(repMsg, chunkServerIdx)
 }
@@ -190,7 +208,7 @@ func repDataRequestHandler(repMsg structs.RepMsg) {
 	fmt.Println("")
 	repMsg.SetMessageType(helper.REP_DATA_REPLY)
 	repMsg.SetPayload(content)
-	helper.SendRep(repMsg, repMsg.TargetCS)
+	helper.SendRepMsg(repMsg, repMsg.TargetCS)
 }
 
 func repDataReplyHandler(repMsg structs.RepMsg) error {
@@ -216,8 +234,20 @@ func repDataReplyHandler(repMsg structs.RepMsg) error {
 	}
 
 	repMsg.SetMessageType(helper.ACK_REPLICATION)
-	helper.SendRep(repMsg, helper.MASTER_SERVER_PORT)
+	helper.SendRepMsg(repMsg, helper.MASTER_SERVER_PORT)
 	return nil
+}
+
+func readReqHandler(readMsg structs.ReadMsg) string {
+	chunkId := readMsg.ChunkId
+	chunkSourcePort := readMsg.Sources[0]
+	pwd, _ := os.Getwd()
+	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
+	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(chunkSourcePort))
+	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
+	content := helper.ReadFile(chunkPath)
+	filteredOutput := filterContentBySW(content, readMsg.SuccessfulWrites)
+	return filteredOutput
 }
 
 func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort int) error {
@@ -257,18 +287,6 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 	return nil
 }
 
-func listen(nodePid int, portNo int) {
-
-	router := gin.Default()
-
-	router.GET("/", landingPageHandler)
-	router.POST("/message", postMessageHandler)
-	router.POST("/replicate", repMessageHandler)
-
-	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)
-	router.Run("localhost:" + strconv.Itoa(portNo))
-}
-
 func createChunk(portNo int, chunkId string) {
 	pwd, _ := os.Getwd()
 	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
@@ -277,6 +295,30 @@ func createChunk(portNo int, chunkId string) {
 	helper.CreateFolder(portDataDirPath)
 	chunkPath := filepath.Join(portDataDirPath, chunkId+".txt")
 	helper.CreateFile(chunkPath)
+}
+
+func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrite) string {
+	_content := []byte(content)
+	var output []byte
+	for _, SW := range successfulWrites {
+		output = append(output, _content[SW.Start:SW.End]...)
+	}
+	filteredOutput := string(output)
+	return filteredOutput
+}
+
+
+func listen(nodePid int, portNo int) {
+
+	router := gin.Default()
+
+	router.GET("/", landingPageHandler)
+	router.POST("/message", postMessageHandler)
+	router.POST("/replicate", repMessageHandler)
+	router.POST("/read", readMsgHandler)
+
+	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)
+	router.Run("localhost:" + strconv.Itoa(portNo))
 }
 
 func ChunkServer(nodePid int, portNo int) {

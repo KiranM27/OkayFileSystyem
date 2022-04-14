@@ -1,16 +1,18 @@
 package client
+
 // Client works on only one append operration at a time !!
 
 import (
-	//"os"
+	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	helper "oks/Helper"
 	structs "oks/Structs"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 var ACKMap sync.Map
@@ -26,7 +28,6 @@ func listen(id int, portNumber int) {
 func messageHandler(context *gin.Context) {
 
 	var message structs.Message
-	//var replyHere chan[]bool
 	// Call BindJSON to bind the received JSON to message.
 	if err := context.BindJSON(&message); err != nil {
 		fmt.Println("Invalid message object received.")
@@ -36,15 +37,22 @@ func messageHandler(context *gin.Context) {
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
-		// fmt.Println("Master gave a reply for append request")
 		go sendChunkAppend(message)
 	case helper.ACK_APPEND:
-		// fmt.Println("Chunk gave a reply for append request")
 		go confirmWrite(message)
 	case helper.ACK_COMMIT:
-		// fmt.Println("Chunk gave reply for commit request")
 		go finishAppend(message)
 	}
+}
+
+func readChunk(chunkId string) string {
+	readMsg := structs.GenerateReadMsgV2(helper.READ_REQ_TO_MASTER, chunkId)
+	resBody := helper.SendReadMsg(readMsg, helper.MASTER_SERVER_PORT)
+	var recReadMsg structs.ReadMsg
+	json.Unmarshal(resBody, &recReadMsg)
+	recReadMsg.SetMessageType(helper.READ_REQ_TO_CHUNK)
+	content := helper.SendReadMsg(recReadMsg, recReadMsg.Sources[0])
+	return string(content)
 }
 
 // Send a request to Master that client wants to append
@@ -126,13 +134,9 @@ func runTimer(message structs.Message) {
 		timer.Reset(5 * time.Second)
 		select {
 		case <-timer.C:
-			// ACKMap.Range(func(k, v interface{}) bool {
-			// 	fmt.Println("range (): ", k, v)
-			// 	return true
-			// })
 			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
 			if ACKMapClientRecords != nil {
-				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord)) - 1]
+				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord))-1]
 				if finalRecord.Acked {
 					fmt.Println("No timeout for request by ", message.Ports[0])
 					return
@@ -146,9 +150,6 @@ func runTimer(message structs.Message) {
 
 // Send append request to primary chunk server and wait
 func sendChunkAppend(message structs.Message) {
-	// fmt.Println("Processing append request to primary chunk server")
-
-	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
 	message.Forward()
 	message.Payload = readFile(message.SourceFilename)
 
@@ -157,70 +158,41 @@ func sendChunkAppend(message structs.Message) {
 	fmt.Println(message.Pointer, message.Ports)
 	//success := SendTimerMessage(message)
 	helper.SendMessage(message)
-
-	// // Check Post Route for response with a timeout
-	// // success := timeoutCheck(context)
-	// success := true
-
-	// // If timed out and can try again, run sendChunkAppend again
-	// if !success && tryAgain {
-	// 	//message.Pointer -= 1 // decrement the pointer
-	// 	message.Reply()
-	// 	sendChunkAppend(message, false, context)
-	// } else if !success && !tryAgain {
-	// 	// if failed and cannot try again,
-	// 	fmt.Println("Append has failed, restart entire process later")
-	// 	time.Sleep(time.Second * 30) // simulate pause
-	// 	requestMasterAppend(message.Ports[0], message.SourceFilename, message.Filename)
-
-	// } else { // success either case
-	// 	fmt.Println("Append succeeded, proceed to confirm write")
-	// 	// there should be a function here
-	// }
 }
 
 // Confirm write to the chunk servers
 func confirmWrite(message structs.Message) {
-	fmt.Println("Confirming write request to primary chunk server")
-	// message.Pointer += 1 // increment the pointer first (initial pointer should be 0)
 	message.Forward()
 	message.SetMessageType(helper.DATA_COMMIT)
-	// HTTP Request to Primary Chunk
-	fmt.Println("Sending append request to Primary Chunk Server")
 	helper.SendMessage(message)
-
-	// // Check Post Route for response with a timeout
-	// //success := timeoutCheck(context)
-	// success := true
-
-	// // If timed out and can try again, run confirmWrite again
-	// if !success && tryAgain {
-	// 	//message.Pointer -= 1 // decrement the pointer
-	// 	message.Reply()
-	// 	confirmWrite(message, false, context)
-	// } else if !success && !tryAgain {
-	// 	// if failed and cannot try again,
-	// 	fmt.Println("Write has failed, restart entire process later")
-	// 	time.Sleep(time.Second * 30) // simulate pause
-	// 	requestMasterAppend(message.Ports[0], message.SourceFilename, message.Filename)
-
-	// } else { // success either case
-	// 	fmt.Println("Write succeeded, Client successfully appended")
-	// }
-
 }
 
 func finishAppend(message structs.Message) {
-	clientPort := message.Ports[0] // 0 index is client port
+	clientPort := message.Ports[0]                    // 0 index is client port
 	ACKMapClientRecords, _ := ACKMap.Load(clientPort) // 0 index is client port
 	ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex].SetAcked(true)
 	ACKMap.Store(clientPort, ACKMapClientRecords)
+
+	// Forwarding the ACK_COMMIT to the master
+	message.SetPorts([]int{clientPort, helper.MASTER_SERVER_PORT})
+	message.Forward()
+	helper.SendMessage(message)
 }
 
-func InitClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
+func InitWriteClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
 	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
 	go listen(id, portNumber)
 	requestMasterAppend(portNumber, sourceFilename, OFSFilename)
+	for {
+
+	}
+}
+
+func InitReadClient(id int, portNumber int, chunkId string) {
+	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
+	go listen(id, portNumber)
+	content := readChunk(chunkId)
+	fmt.Println("The follwing is the text that was read from chunk with chunkId - ", chunkId, " - Data - ", content)
 	for {
 
 	}
