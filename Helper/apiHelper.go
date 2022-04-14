@@ -27,12 +27,12 @@ func SendRepMsg(repMsg structs.RepMsg, receiver int) {
 	fmt.Println(string(body))
 }
 
-func SendReadMsg(readMsg structs.ReadMsg, receiver int) string {
+func SendReadMsg(readMsg structs.ReadMsg, receiver int) []byte {
 	portNo := receiver
 	requestUrl := BASE_URL + ":" + strconv.Itoa(portNo) + "/read"
 	messageJSON, _ := json.Marshal(readMsg)
 	body := POSTMessage(requestUrl, messageJSON)
-	return string(body)
+	return body
 }
 
 func POSTMessage(requestURL string, messageJSON []byte) []byte { // a helper function that makes POST requests and returns the body of the reponse

@@ -3,14 +3,16 @@ package client
 // Client works on only one append operration at a time !!
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	helper "oks/Helper"
 	structs "oks/Structs"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 var ACKMap sync.Map
@@ -43,8 +45,14 @@ func messageHandler(context *gin.Context) {
 	}
 }
 
-func readChunk(chunkId string) {
-
+func readChunk(chunkId string) string {
+	readMsg := structs.GenerateReadMsgV2(helper.READ_REQ_TO_MASTER, chunkId)
+	resBody := helper.SendReadMsg(readMsg, helper.MASTER_SERVER_PORT)
+	var recReadMsg structs.ReadMsg
+	json.Unmarshal(resBody, &recReadMsg)
+	recReadMsg.SetMessageType(helper.READ_REQ_TO_CHUNK)
+	content := helper.SendReadMsg(recReadMsg, recReadMsg.Sources[0])
+	return string(content)
 }
 
 // Send a request to Master that client wants to append
@@ -171,10 +179,20 @@ func finishAppend(message structs.Message) {
 	helper.SendMessage(message)
 }
 
-func InitClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
+func InitWriteClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
 	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
 	go listen(id, portNumber)
 	requestMasterAppend(portNumber, sourceFilename, OFSFilename)
+	for {
+
+	}
+}
+
+func InitReadClient(id int, portNumber int, chunkId string) {
+	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
+	go listen(id, portNumber)
+	content := readChunk(chunkId)
+	fmt.Println("The follwing is the text that was read from chunk with chunkId - ", chunkId, " - Data - ", content)
 	for {
 
 	}

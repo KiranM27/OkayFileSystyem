@@ -56,6 +56,7 @@ func listen(nodePid int, portNo int) {
 	router := gin.Default()
 	router.POST("/message", postMessageHandler)
 	router.POST("/replicate", repMessageHandler)
+	router.POST("/read", readMessagehandler)
 	fmt.Printf("Node %d listening on port %d \n", nodePid, portNo)
 	router.Run("localhost:" + strconv.Itoa(portNo))
 }
@@ -105,6 +106,18 @@ func repMessageHandler(context *gin.Context) {
 	}
 }
 
+func readMessagehandler(context *gin.Context) {
+	var readMsg structs.ReadMsg
+
+	// Call BindJSON to bind the received JSON to message.
+	if err := context.BindJSON(&readMsg); err != nil {
+		fmt.Println("Invalid message object received.", err)
+		return
+	}
+	responseMsg := readHandler(readMsg)
+	context.IndentedJSON(http.StatusOK, responseMsg)
+}
+
 func ackCommitHandler(message structs.Message) {
 	lock.Lock()
 	SWObj := structs.GenerateSW(message.ChunkOffset, message.ChunkOffset+message.PayloadSize)
@@ -124,6 +137,12 @@ func appendMessageHandler(message structs.Message) {
 		fileNotNew(message)
 
 	}
+}
+
+func readHandler(readMsg structs.ReadMsg) structs.ReadMsg {
+	chunkId := readMsg.ChunkId
+	responseMsg := structs.GenerateReadMsg(helper.ACK_READ_REQ, chunkId, metaData.chunkIdToChunkserver[chunkId], metaData.successfulWrites[chunkId], "")
+	return responseMsg
 }
 
 func fileNotNew(message structs.Message) {

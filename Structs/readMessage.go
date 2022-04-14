@@ -19,6 +19,14 @@ func GenerateReadMsg(messageType string, chunkId string, sources []int, successf
 	return readMsg
 }
 
+func GenerateReadMsgV2(messageType string, chunkId string) ReadMsg {
+	readMsg := ReadMsg{
+		MessageType:      messageType,
+		ChunkId:          chunkId,
+	}
+	return readMsg
+}
+
 func (r *ReadMsg) SetMessageType(messageType string) {
 	r.MessageType = messageType
 }
