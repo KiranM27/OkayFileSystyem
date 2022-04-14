@@ -46,15 +46,11 @@ type MetaData struct {
 	heartBeatAck sync.Map
 	// {8080:{f1_c0}}
 	chunkServerToChunkId map[int][]string
-
-	replicationMap map[int][]structs.RepMsg
+	replicationMap       map[int][]structs.RepMsg
+	successfulWrites     map[string][]structs.SuccessfulWrite
 }
 
 // Placeholder - TODO: Add proper replication message struct to message.go
-
-type Port struct {
-	portToInt map[string]int
-}
 
 func listen(nodePid int, portNo int) {
 	router := gin.Default()
@@ -85,6 +81,8 @@ func postMessageHandler(context *gin.Context) {
 		go ackChunkCreate(message)
 	case helper.ACK_HEARTBEAT:
 		go receiveHeartbeatACK(message)
+	case helper.ACK_COMMIT:
+		go ackCommitHandler(message)
 	case helper.REVIVE: // same thing as get heartbeat
 		go receiveHeartbeatACK(message)
 	}
@@ -105,6 +103,13 @@ func repMessageHandler(context *gin.Context) {
 	case helper.ACK_REPLICATION:
 		receiveReplicationACK(repMsg)
 	}
+}
+
+func ackCommitHandler(message structs.Message) {
+	SWObj := structs.GenerateSW(message.ChunkOffset, message.ChunkOffset + message.PayloadSize)
+	metaData.successfulWrites[message.ChunkId] = append(metaData.successfulWrites[message.ChunkId], SWObj)
+	fmt.Println("SIZE OF SUCCESSFUL WRITES IS NOW ", len(metaData.successfulWrites[message.ChunkId]))
+	fmt.Println("FINAL ELEMENT IS ", metaData.successfulWrites[message.ChunkId][len(metaData.successfulWrites[message.ChunkId]) - 1])
 }
 
 func appendMessageHandler(message structs.Message) {
@@ -292,33 +297,14 @@ func startReplicate(chunkServerId int) error {
 
 		// 3c - Get available servers we can replicate to
 		// Comment: Do we have to know every available one? Once we find one lets just pick it and end.
-		// availableServers := []int{}
 		var replicateServer int
 		metaData.heartBeatAck.Range(func(replicateCandidate, replicateCandidateStatus interface{}) bool {
-			fmt.Printf("Candidate: %v, Status: %v\n", replicateCandidate, replicateCandidateStatus)
 			if !Contains(sourceServers, replicateCandidate.(int)) && replicateCandidateStatus.(heartState) != Dead { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
-				// availableServers = append(availableServers, chunkServerKey)
-				// replicateServer = targetCS~
 				replicateServer = replicateCandidate.(int)
-				fmt.Printf("TARGET SERVER IS %v\n", replicateServer)
 				return false
 			}
 			return true
 		})
-
-		// for metaData.heartBeatAck.Range() { // get global list of chunk servers
-		// 	replicateServerStatus, _ := metaData.heartBeatAck.Load(replicateServer)
-		// 	fmt.Println("Current candidate is ", replicateServer, " - sourceServers ", sourceServers, " - contains result - ", Contains(sourceServers, replicateServer) )
-		// 	if !Contains(sourceServers, replicateServer) && replicateServerStatus == Alive { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
-		// 		// availableServers = append(availableServers, chunkServerKey)
-		// 		// replicateServer = targetCS
-		// 		fmt.Printf("TARGET SERVER IS %v\n", replicateServer)
-		// 		break
-		// 	}
-		// }
-		// replicateServer := availableServers[0] // just gest the first one lol
-
-		// 3d
 
 		// create new replication message
 		newReplication := structs.RepMsg{
@@ -435,6 +421,7 @@ func main() {
 	metaData.chunkServerToChunkId = make(map[int][]string)
 	metaData.chunkIdToOffset = make(map[string]int64)
 	metaData.replicationMap = make(map[int][]structs.RepMsg)
+	metaData.successfulWrites = make(map[string][]structs.SuccessfulWrite)
 	metaData.initialiseACKMap()
 
 	go chunkServer.ChunkServer(1, 8081)
@@ -469,11 +456,4 @@ func main() {
 		3g. Send to target Chunkserver
 		3h. After receiving ACK REPLICATION from chunkserver 3, remove entry from rep map
 		3i. Update Metadata
-
-TODO (Kiran/Yiern)
-1. Add proper replication message struct to message.go; Line 52
-2. Add replication route and replication message handler; Line 73
-3. Add new send message for replication; Line 317
-
-
 */

@@ -16,7 +16,7 @@ type Message struct {
 }
 
 func (message Message) GenerateUid() string {
-	uid := message.Filename + message.ChunkId + strconv.Itoa(int(message.ChunkOffset))
+	uid := message.ChunkId + strconv.Itoa(int(message.ChunkOffset))
 	return uid
 }
 
