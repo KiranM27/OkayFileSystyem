@@ -18,6 +18,7 @@ var ACKMap sync.Map
 func listen(id int, portNumber int) {
 	router := gin.Default()
 	router.POST("/message", messageHandler)
+	router.POST("/read", readHandler)
 
 	fmt.Printf("Client %d listening on port %d \n", id, portNumber)
 	router.Run("localhost:" + strconv.Itoa(portNumber))
@@ -26,7 +27,6 @@ func listen(id int, portNumber int) {
 func messageHandler(context *gin.Context) {
 
 	var message structs.Message
-	//var replyHere chan[]bool
 	// Call BindJSON to bind the received JSON to message.
 	if err := context.BindJSON(&message); err != nil {
 		fmt.Println("Invalid message object received.")
@@ -42,6 +42,23 @@ func messageHandler(context *gin.Context) {
 	case helper.ACK_COMMIT:
 		go finishAppend(message)
 	}
+}
+
+func readHandler(context *gin.Context) {
+
+	var readMsg structs.ReadMsg
+	// Call BindJSON to bind the received JSON to message.
+	if err := context.BindJSON(&readMsg); err != nil {
+		fmt.Println("Invalid message object received.")
+		return
+	}
+	readChunk(readMsg)
+	context.IndentedJSON(http.StatusOK, "New placeholder")
+}
+
+func readChunk(readMsg structs.ReadMsg) {
+	
+
 }
 
 // Send a request to Master that client wants to append
@@ -123,10 +140,6 @@ func runTimer(message structs.Message) {
 		timer.Reset(5 * time.Second)
 		select {
 		case <-timer.C:
-			// ACKMap.Range(func(k, v interface{}) bool {
-			// 	fmt.Println("range (): ", k, v)
-			// 	return true
-			// })
 			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
 			if ACKMapClientRecords != nil {
 				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord)) - 1]

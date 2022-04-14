@@ -106,10 +106,10 @@ func repMessageHandler(context *gin.Context) {
 }
 
 func ackCommitHandler(message structs.Message) {
-	SWObj := structs.GenerateSW(message.ChunkOffset, message.ChunkOffset + message.PayloadSize)
+	SWObj := structs.GenerateSW(message.ChunkOffset, message.ChunkOffset+message.PayloadSize)
 	metaData.successfulWrites[message.ChunkId] = append(metaData.successfulWrites[message.ChunkId], SWObj)
 	fmt.Println("SIZE OF SUCCESSFUL WRITES IS NOW ", len(metaData.successfulWrites[message.ChunkId]))
-	fmt.Println("FINAL ELEMENT IS ", metaData.successfulWrites[message.ChunkId][len(metaData.successfulWrites[message.ChunkId]) - 1])
+	fmt.Println("FINAL ELEMENT IS ", metaData.successfulWrites[message.ChunkId][len(metaData.successfulWrites[message.ChunkId])-1])
 }
 
 func appendMessageHandler(message structs.Message) {
@@ -325,7 +325,7 @@ func startReplicate(chunkServerId int) error {
 	for _, replicationMsgs := range temporaryReplicationMap {
 		for _, repMessage := range replicationMsgs {
 			fmt.Println(repMessage.ChunkId, repMessage.TargetCS)
-			go helper.SendRep(repMessage, repMessage.TargetCS) // need new helper function for rep msg
+			go helper.SendRepMsg(repMessage, repMessage.TargetCS) // need new helper function for rep msg
 		}
 	}
 	return nil

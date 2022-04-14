@@ -174,7 +174,7 @@ func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
 	// set timer message?
 	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
 	fmt.Println("____________________ Source: ", repMsg.Sources, "________________________")
-	helper.SendRep(repMsg, repMsg.Sources[chunkServerIdx])
+	helper.SendRepMsg(repMsg, repMsg.Sources[chunkServerIdx])
 	// ACKMap.Store(repMsg.TargetCS, )
 	// go runTimer(repMsg, chunkServerIdx)
 }
@@ -190,7 +190,7 @@ func repDataRequestHandler(repMsg structs.RepMsg) {
 	fmt.Println("")
 	repMsg.SetMessageType(helper.REP_DATA_REPLY)
 	repMsg.SetPayload(content)
-	helper.SendRep(repMsg, repMsg.TargetCS)
+	helper.SendRepMsg(repMsg, repMsg.TargetCS)
 }
 
 func repDataReplyHandler(repMsg structs.RepMsg) error {
@@ -216,7 +216,7 @@ func repDataReplyHandler(repMsg structs.RepMsg) error {
 	}
 
 	repMsg.SetMessageType(helper.ACK_REPLICATION)
-	helper.SendRep(repMsg, helper.MASTER_SERVER_PORT)
+	helper.SendRepMsg(repMsg, helper.MASTER_SERVER_PORT)
 	return nil
 }
 
