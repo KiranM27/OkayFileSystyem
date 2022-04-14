@@ -1,9 +1,8 @@
 package client
+
 // Client works on only one append operration at a time !!
 
 import (
-	"os"
-	"path/filepath"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -19,7 +18,6 @@ var ACKMap sync.Map
 func listen(id int, portNumber int) {
 	router := gin.Default()
 	router.POST("/message", messageHandler)
-	router.POST("/read", readHandler)
 
 	fmt.Printf("Client %d listening on port %d \n", id, portNumber)
 	router.Run("localhost:" + strconv.Itoa(portNumber))
@@ -45,38 +43,8 @@ func messageHandler(context *gin.Context) {
 	}
 }
 
-func readHandler(context *gin.Context) {
+func readChunk(chunkId string) {
 
-	var readMsg structs.ReadMsg
-	// Call BindJSON to bind the received JSON to message.
-	if err := context.BindJSON(&readMsg); err != nil {
-		fmt.Println("Invalid message object received.")
-		return
-	}
-	content := readChunk(readMsg)
-	context.IndentedJSON(http.StatusOK, content)
-}
-
-func readChunk(readMsg structs.ReadMsg) string {
-	chunkId := readMsg.ChunkId
-	chunkSourcePort := readMsg.Sources[0]
-	pwd, _ := os.Getwd()
-	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
-	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(chunkSourcePort))
-	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
-	content := helper.ReadFile(chunkPath)
-	filteredOutput := filterContentBySW(content, readMsg.SuccessfulWrites)
-	return filteredOutput
-}
-
-func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrite) string {
-	_content := []byte(content)
-	var output []byte
-	for _, SW := range successfulWrites {
-		output = append(output, _content[SW.Start: SW.End]...)
-	}
-	filteredOutput := string(output)
-	return filteredOutput
 }
 
 // Send a request to Master that client wants to append
@@ -160,7 +128,7 @@ func runTimer(message structs.Message) {
 		case <-timer.C:
 			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
 			if ACKMapClientRecords != nil {
-				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord)) - 1]
+				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord))-1]
 				if finalRecord.Acked {
 					fmt.Println("No timeout for request by ", message.Ports[0])
 					return
@@ -192,11 +160,11 @@ func confirmWrite(message structs.Message) {
 }
 
 func finishAppend(message structs.Message) {
-	clientPort := message.Ports[0] // 0 index is client port
+	clientPort := message.Ports[0]                    // 0 index is client port
 	ACKMapClientRecords, _ := ACKMap.Load(clientPort) // 0 index is client port
 	ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex].SetAcked(true)
 	ACKMap.Store(clientPort, ACKMapClientRecords)
-	
+
 	// Forwarding the ACK_COMMIT to the master
 	message.SetPorts([]int{clientPort, helper.MASTER_SERVER_PORT})
 	message.Forward()
