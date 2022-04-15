@@ -6,7 +6,7 @@ import (
 )
 
 func singleWrite() {
-	go client.InitWriteClient(7, 8087, "test2.txt", "shared_chunk.txt")
+	go client.InitWriteClient(7, 8087, "test.txt", "shared_chunk.txt")
 	for {}
 }
 
@@ -29,6 +29,6 @@ func readChunk() {
 }
 
 func main() {
-	// singleWrite()
-	readChunk()
+	singleWrite()
+	// readChunk()
 }

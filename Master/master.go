@@ -134,6 +134,7 @@ func appendMessageHandler(message structs.Message) {
 	} else {
 		// if file is not new
 		// fmt.Println("Master received old file from Client")
+		fmt.Println("CHECK THIS ",  metaData.fileIdToChunkId[message.Filename])
 		fileNotNew(message)
 
 	}
@@ -146,8 +147,18 @@ func readHandler(readMsg structs.ReadMsg) structs.ReadMsg {
 }
 
 func fileNotNew(message structs.Message) {
-	//create message to send to client
+	fmt.Println("FUCK ", len(metaData.fileIdToChunkId[message.Filename]))
+
 	chunkId := metaData.fileIdToChunkId[message.Filename][len(metaData.fileIdToChunkId[message.Filename])-1]
+	fmt.Println("NOT HEER")
+	if helper.CHUNK_SIZE - metaData.chunkIdToOffset[chunkId] < message.PayloadSize + 1 {
+		fmt.Println("HERE")
+		newChunkNo := len(metaData.fileIdToChunkId[message.Filename])
+		newChunkId := message.Filename + "_c" + strconv.Itoa(newChunkNo)
+		createNewFile(newChunkId, message)
+	}
+
+	//create message to send to client
 	messagePorts := message.Ports // [C, M]
 	messagePorts = append([]int{messagePorts[0]}, metaData.chunkIdToChunkserver[chunkId]...)
 	// [C, P, S1, S2]
@@ -180,9 +191,18 @@ func fileNotNew(message structs.Message) {
 // Client wants to append to a new file
 func newFileAppend(message structs.Message) {
 	// create new entry in MetaData
-	lock.Lock()
 	chunkId := message.Filename + "_c0"
-	metaData.fileIdToChunkId[message.Filename] = []string{chunkId}
+	createNewFile(chunkId, message)
+}
+
+func createNewFile(chunkId string, message structs.Message) {
+	lock.Lock()
+	tempChunkList := []string{}
+	if val, ok := metaData.fileIdToChunkId[message.Filename]; ok {
+		tempChunkList = append(tempChunkList, val...)
+	}
+	fmt.Println(tempChunkList)
+	metaData.fileIdToChunkId[message.Filename] = append(tempChunkList, chunkId)
 	lock.Unlock()
 	// ask 3 chunkserver to create chunks
 	fmt.Println("Master choosing 3 chunkservers")
@@ -310,9 +330,14 @@ func startReplicate(chunkServerId int) error {
 		}
 	}
 
+	deadServerChunks := []structs.RepMsg{}
+
 	// if replication failed, get the chunk ids that it was supposed to replicate
-	if val,ok := metaData.replicationMap[chunkServerId]; ok {
-		temporaryReplicationMap[chunkServerId] = append(temporaryReplicationMap[chunkServerId], val...) 
+	if val, ok := metaData.replicationMap[chunkServerId]; ok {
+		deadServerChunks = append(deadServerChunks, val...)
+		for _, failedRepMsgStruct := range val {
+			failedChunkIds = append(failedChunkIds, failedRepMsgStruct.ChunkId)
+		}
 	}
 
 	// Get metadata needed 3b
@@ -322,16 +347,18 @@ func startReplicate(chunkServerId int) error {
 		// 3c - Get available servers we can replicate to
 		// Comment: Do we have to know every available one? Once we find one lets just pick it and end.
 		var replicateServer int
-		metaData.heartBeatAck.Range(func(replicateCandidate int, replicateCandidateStatus interface{}) bool {
-			
-			if !Contains(sourceServers, replicateCandidate) && replicateCandidateStatus.(heartState) != Dead{ // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
-				if val, ok := temporaryReplicationMap[replicateCandidate]; ok {
-					for i, j := range val {
-						if j.TargetCS == replicateCandidate
+		metaData.heartBeatAck.Range(func(replicateCandidate, replicateCandidateStatus interface{}) bool {
+			tempRepMapFlag := false
+			if !Contains(sourceServers, replicateCandidate.(int)) && replicateCandidateStatus.(heartState) != Dead { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
+				for _, replicateCandidateRepMsgStruct := range deadServerChunks {
+					if replicateCandidateRepMsgStruct.TargetCS == replicateCandidate {
+						tempRepMapFlag = true
 					}
 				}
-				replicateServer = replicateCandidate		
-				return false
+				if !tempRepMapFlag {
+					replicateServer = replicateCandidate.(int)
+					return false
+				}
 			}
 			return true
 		})

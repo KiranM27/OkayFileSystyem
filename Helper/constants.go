@@ -43,6 +43,8 @@ const (
 	NULL    = "NULL"
 
 	REP_COUNT = 3 // not tested fully with prev code
+
+	CHUNK_SIZE = 25
 )
 
 var (

@@ -65,7 +65,7 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 	sourceFileByteSize := getFileSize(sourceFilename)
 
 	// Check byte size of file, if more than 2.5kb split
-	if sourceFileByteSize > 2500 {
+	if sourceFileByteSize > helper.CHUNK_SIZE {
 		numChunks = splitFile(sourceFilename)
 	} else {
 		numChunks = 1
@@ -103,11 +103,22 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 	} else {
 		// TODO: FIX RECORD INDEX - USE SOLN ABOVE, BUT NEED TO UPDATE FOR MULTIPLE RECORDS
 		sourceFilePrefix := removeExtension(sourceFilename)
+		
 		for i := uint64(0); i < numChunks; i++ {
 			smallFileName := sourceFilePrefix + strconv.FormatUint(i, 10) + ".txt"
 			smallFileSize := getFileSize(smallFileName)
-			// fmt.Println(smallFileName) // debug
-			// fmt.Println(smallFileSize) // debug
+			fmt.Println(smallFileName) // debug
+			fmt.Println(smallFileSize) // debug
+
+			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
+			if ACKMapClientRecords == nil {
+				ACKMapClientRecords = []structs.ACKMAPRecord{}
+			}
+			recordIndex := len(ACKMapClientRecords.([]structs.ACKMAPRecord))
+			ACKMapClientRecords = append(ACKMapClientRecords.([]structs.ACKMAPRecord), structs.ACKMAPRecord{
+				RecordIndex: recordIndex,
+				Acked:       false,
+			})
 
 			message := structs.Message{
 				MessageType:    helper.DATA_APPEND,
@@ -116,8 +127,10 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 				SourceFilename: smallFileName,
 				Filename:       OFSFilename, // TODO: This should be the same file name still right
 				PayloadSize:    smallFileSize,
+				RecordIndex:    uint64(recordIndex),
 			}
-			ACKMap.Store(int(message.RecordIndex), true)
+			//ACKMap.Store(int(message.RecordIndex), true)
+			ACKMap.Store(clientPort, ACKMapClientRecords)
 			// HTTP Request to Master
 			fmt.Println(strconv.Itoa(clientPort) + " Sending append request to Master")
 			helper.SendMessage(message)
@@ -136,7 +149,8 @@ func runTimer(message structs.Message) {
 		case <-timer.C:
 			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
 			if ACKMapClientRecords != nil {
-				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord))-1]
+				//finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord))-1]
+				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex]
 				if finalRecord.Acked {
 					fmt.Println("No timeout for request by ", message.Ports[0])
 					return
