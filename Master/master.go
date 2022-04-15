@@ -19,6 +19,8 @@ import (
 
 var metaData MetaData
 var lock sync.Mutex
+var liveChunkServers = []int{}
+var latestChunkServer = 8090
 
 type heartState int
 
@@ -130,6 +132,7 @@ func appendMessageHandler(message structs.Message) {
 	if _, ok := metaData.fileIdToChunkId[message.Filename]; !ok {
 		// if file does not exist in metaData, create a new entry
 		// fmt.Println("Master received new file from Client")
+		fmt.Println("THIS CHECK ", metaData.fileIdToChunkId[message.Filename])
 		newFileAppend(message)
 	} else {
 		// if file is not new
@@ -204,7 +207,7 @@ func createNewFile(chunkId string, message structs.Message) {
 	lock.Unlock()
 	// ask 3 chunkserver to create chunks
 	fmt.Println("Master choosing 3 chunkservers")
-	new_chunkServer := choose_3_random_chunkServers()
+	new_chunkServer := choose_n_random_chunkServers()
 	messagePorts := message.Ports // [C, M]
 	messagePorts = append(messagePorts, new_chunkServer...)
 
@@ -223,6 +226,11 @@ func createNewFile(chunkId string, message structs.Message) {
 	}
 	fmt.Println("Master sending request to primary chunkserver ", message1)
 	helper.SendMessage(message1)
+
+	// increment offset
+	lock.Lock()
+	metaData.chunkIdToOffset[chunkId] += message1.PayloadSize
+	lock.Unlock()
 }
 
 // after receiving ack from primary, approve request for client
@@ -258,8 +266,8 @@ func ackChunkCreate(message structs.Message) {
 	fmt.Println(metaData.chunkIdToChunkserver[message.ChunkId])
 
 	// increment offset
-	new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
-	metaData.chunkIdToOffset[message.ChunkId] = new_offset
+	// new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
+	// metaData.chunkIdToOffset[message.ChunkId] = new_offset
 	lock.Unlock()
 }
 
@@ -272,36 +280,36 @@ func sendHeartbeat() {
 
 	for {
 		// metaData.printACKMap()
-		for i := 8081; i <= 8085; i++ {
-			currentHeartState, _ := metaData.heartBeatAck.Load(i)
+		for _, liveServer := range liveChunkServers {
+			currentHeartState, _ := metaData.heartBeatAck.Load(liveServer)
 			switch currentHeartState {
 			case Start: // For the first heartbeat
-				metaData.heartBeatAck.Store(i, Pending)
+				metaData.heartBeatAck.Store(liveServer, Pending)
 				heartbeatMsg := structs.Message{
 					MessageType: helper.HEARTBEAT,
-					Ports:       []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
+					Ports:       []int{helper.MASTER_SERVER_PORT, liveServer}, // [C, P, S1, S2]
 					Pointer:     1,
 				}
 				go helper.SendMessage(heartbeatMsg)
 			case Pending: // No reply from the previous heartbeat, consider the chunk server dead
 				// TODO: SEND HERE
-				go startReplicate(i) // give the port number to function
-				metaData.heartBeatAck.Store(i, Dead)
+				go startReplicate(liveServer) // give the port number to function
+				metaData.heartBeatAck.Store(liveServer, Dead)
 			case Alive: // Successfully received ack from previous heartbeat, send next heartbeat
-				metaData.heartBeatAck.Store(i, Pending)
+				metaData.heartBeatAck.Store(liveServer, Pending)
 				heartbeatMsg := structs.Message{
 					MessageType: helper.HEARTBEAT,
-					Ports:       []int{helper.MASTER_SERVER_PORT, i}, // [C, P, S1, S2]
+					Ports:       []int{helper.MASTER_SERVER_PORT, liveServer}, // [C, P, S1, S2]
 					Pointer:     1,
 				}
 				go helper.SendMessage(heartbeatMsg)
 			case Dead: // Chunk server is dead, replicate server
-				fmt.Println(i, " is dead!")
+				fmt.Println(liveServer, " is dead!")
 			}
 
 		}
 
-		time.Sleep(time.Second * 5)
+		time.Sleep(helper.DEFAULT_TIMEOUT)
 	}
 }
 
@@ -426,19 +434,18 @@ func (m *MetaData) printACKMap() {
 	})
 }
 
-func choose_3_random_chunkServers() []int {
+func choose_n_random_chunkServers() []int {
 
-	chunkServerArray := map[int]bool{
-		8081: false,
-		8082: false,
-		8083: false,
-		8084: false,
-		8085: false,
+	chunkServerArray := make(map[int]bool)
+	for _, server := range liveChunkServers {
+		serverStatus, _ := metaData.heartBeatAck.Load(server)
+		if serverStatus == Alive {
+			chunkServerArray[server] = false
+		}
 	}
-
 	res := []int{}
 
-	for len(res) < 3 {
+	for len(res) < helper.REP_COUNT {
 		//random key stores the key from the chunkS
 		random_key := MapRandomKeyGet(chunkServerArray).(int)
 		// checking if this key boolean is false or true, if false append this key to the res and set the key value true instead
@@ -464,10 +471,8 @@ func MapRandomKeyGet(mapI interface{}) interface{} {
 }
 
 // Create ACKMap on start-up
-func (m *MetaData) initialiseACKMap() {
-	for i := 8081; i <= 8085; i++ {
-		m.heartBeatAck.Store(i, Start)
-	}
+func (m *MetaData) initialiseACKMap(portNum int) {
+	m.heartBeatAck.Store(portNum, Start)
 }
 
 func main() {
@@ -477,15 +482,17 @@ func main() {
 	metaData.chunkIdToOffset = make(map[string]int64)
 	metaData.replicationMap = make(map[int][]structs.RepMsg)
 	metaData.successfulWrites = make(map[string][]structs.SuccessfulWrite)
-	metaData.initialiseACKMap()
+	//metaData.initialiseACKMap()
+	for i := 0; i < helper.INITIAL_NUM_CHUNKSERVERS; i++ {
 
-	go chunkServer.ChunkServer(1, 8081)
-	go chunkServer.ChunkServer(2, 8082)
-	go chunkServer.ChunkServer(3, 8083)
-	go chunkServer.ChunkServer(4, 8084)
-	go chunkServer.ChunkServer(5, 8085)
+		go chunkServer.ChunkServer(i, latestChunkServer)
+		metaData.initialiseACKMap(latestChunkServer)
+		liveChunkServers = append(liveChunkServers, latestChunkServer)
+		latestChunkServer += 1
+	}
+
 	go sendHeartbeat()
-	listen(0, 8080)
+	listen(0, helper.MASTER_SERVER_PORT)
 
 }
 
