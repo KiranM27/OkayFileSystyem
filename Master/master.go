@@ -310,6 +310,11 @@ func startReplicate(chunkServerId int) error {
 		}
 	}
 
+	// if replication failed, get the chunk ids that it was supposed to replicate
+	if val,ok := metaData.replicationMap[chunkServerId]; ok {
+		temporaryReplicationMap[chunkServerId] = append(temporaryReplicationMap[chunkServerId], val...) 
+	}
+
 	// Get metadata needed 3b
 	for _, failedChunkId := range failedChunkIds { // iterate through chunk ids from failed chunk server
 		sourceServers := metaData.chunkIdToChunkserver[failedChunkId] // get list of remaining chunk servers associated to chunk ID
@@ -317,9 +322,15 @@ func startReplicate(chunkServerId int) error {
 		// 3c - Get available servers we can replicate to
 		// Comment: Do we have to know every available one? Once we find one lets just pick it and end.
 		var replicateServer int
-		metaData.heartBeatAck.Range(func(replicateCandidate, replicateCandidateStatus interface{}) bool {
-			if !Contains(sourceServers, replicateCandidate.(int)) && replicateCandidateStatus.(heartState) != Dead { // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
-				replicateServer = replicateCandidate.(int)
+		metaData.heartBeatAck.Range(func(replicateCandidate int, replicateCandidateStatus interface{}) bool {
+			
+			if !Contains(sourceServers, replicateCandidate) && replicateCandidateStatus.(heartState) != Dead{ // check if the chunk server id is in sourceServers, if yes means it already has chunk ID
+				if val, ok := temporaryReplicationMap[replicateCandidate]; ok {
+					for i, j := range val {
+						if j.TargetCS == replicateCandidate
+					}
+				}
+				replicateServer = replicateCandidate		
 				return false
 			}
 			return true
