@@ -147,12 +147,8 @@ func readHandler(readMsg structs.ReadMsg) structs.ReadMsg {
 }
 
 func fileNotNew(message structs.Message) {
-	fmt.Println("FUCK ", len(metaData.fileIdToChunkId[message.Filename]))
-
 	chunkId := metaData.fileIdToChunkId[message.Filename][len(metaData.fileIdToChunkId[message.Filename])-1]
-	fmt.Println("NOT HEER")
-	if helper.CHUNK_SIZE - metaData.chunkIdToOffset[chunkId] < message.PayloadSize + 1 {
-		fmt.Println("HERE")
+	if helper.CHUNK_SIZE - metaData.chunkIdToOffset[chunkId] <= message.PayloadSize {
 		newChunkNo := len(metaData.fileIdToChunkId[message.Filename])
 		newChunkId := message.Filename + "_c" + strconv.Itoa(newChunkNo)
 		createNewFile(newChunkId, message)
@@ -223,7 +219,7 @@ func createNewFile(chunkId string, message structs.Message) {
 		ChunkOffset:    0,
 		RecordIndex:    message.RecordIndex,
 	}
-	fmt.Println("Master sending request to primary chunkserver")
+	fmt.Println("Master sending request to primary chunkserver ", message1)
 	helper.SendMessage(message1)
 }
 
@@ -248,7 +244,7 @@ func ackChunkCreate(message structs.Message) {
 		ChunkOffset:    0,
 		RecordIndex:    message.RecordIndex,
 	}
-	fmt.Println("Master approving append request to client")
+	fmt.Println("Master approving append request to client - ", message1)
 	helper.SendMessage(message1)
 
 	//record in metaData
