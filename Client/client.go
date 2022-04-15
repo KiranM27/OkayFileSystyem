@@ -103,7 +103,7 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 	} else {
 		// TODO: FIX RECORD INDEX - USE SOLN ABOVE, BUT NEED TO UPDATE FOR MULTIPLE RECORDS
 		sourceFilePrefix := removeExtension(sourceFilename)
-		
+
 		for i := uint64(0); i < numChunks; i++ {
 			smallFileName := sourceFilePrefix + strconv.FormatUint(i, 10) + ".txt"
 			smallFileSize := getFileSize(smallFileName)
@@ -141,10 +141,10 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 }
 
 func runTimer(message structs.Message) {
-	timer := time.NewTimer(3 * time.Second)
+	timer := time.NewTimer(helper.DEFAULT_TIMEOUT)
 	clientPort := message.Ports[0] // 0 index is client port
 	for {
-		timer.Reset(5 * time.Second)
+		timer.Reset(helper.DEFAULT_TIMEOUT)
 		select {
 		case <-timer.C:
 			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
@@ -152,7 +152,7 @@ func runTimer(message structs.Message) {
 				//finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord))-1]
 				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex]
 				if finalRecord.Acked {
-					fmt.Println("No timeout for request by ", message.Ports[0])
+					fmt.Println("No timeout for request by ", message.Ports[0], message)
 					return
 				}
 				fmt.Println("Timeout, resending message")
@@ -168,7 +168,7 @@ func sendChunkAppend(message structs.Message) {
 	message.Payload = readFile(message.SourceFilename)
 
 	// HTTP Request to Primary Chunk
-	fmt.Println("Sending append request to Primary Chunk Server")
+	fmt.Println("Sending append request to Primary Chunk Server", message)
 	fmt.Println(message.Pointer, message.Ports)
 	//success := SendTimerMessage(message)
 	helper.SendMessage(message)
@@ -196,7 +196,12 @@ func finishAppend(message structs.Message) {
 func InitWriteClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
 	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
 	go listen(id, portNumber)
+	start := time.Now()
 	requestMasterAppend(portNumber, sourceFilename, OFSFilename)
+	end := time.Now()
+	fmt.Printf("Start Time for client %d : %.2f\n", id, start)
+	fmt.Printf("End Time for client %d : %.2f\n", id, end)
+	fmt.Printf("Append Time taken = %.2f seconds \n", end.Sub(start).Seconds())
 	for {
 
 	}
@@ -205,8 +210,16 @@ func InitWriteClient(id int, portNumber int, sourceFilename string, OFSFilename 
 func InitReadClient(id int, portNumber int, chunkId string) {
 	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
 	go listen(id, portNumber)
+	start := time.Now()
+
 	content := readChunk(chunkId)
+
 	fmt.Println("The follwing is the text that was read from chunk with chunkId - ", chunkId, " - Data - ", content)
+	end := time.Now()
+	fmt.Printf("Start Time for client %d : %.2f\n", id, start)
+	fmt.Printf("End Time for client %d : %.2f\n", id, end)
+
+	fmt.Printf("Read Time taken = %.2f seconds \n", end.Sub(start).Seconds())
 	for {
 
 	}

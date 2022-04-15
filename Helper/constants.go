@@ -1,5 +1,7 @@
 package helper
 
+import "time"
+
 const (
 	BASE_URL = "http://localhost"
 
@@ -44,17 +46,19 @@ const (
 
 	REP_COUNT = 3 // not tested fully with prev code
 
-	CHUNK_SIZE = 25
+	CHUNK_SIZE               = 25
+	INITIAL_NUM_CHUNKSERVERS = 5
+	DEFAULT_TIMEOUT          = 5 * time.Second
 )
 
 var (
 	PORT_PID_MAP = map[int]int{ // Maps ports to pids.
-		8080: 1, // Master Server
-		8081: 2, // Chunk Server 1
-		8082: 3, // Chunk Server 2
-		8083: 4, // Chunk Server 3
-		8084: 5, // Chunk Server 4
-		8085: 6, // Chunk Server 5
-		8086: 7, // Client 1
+		8080: 1,  // Master Server
+		8081: 2,  // client
+		8091: 11, // chunkserver 1
+		8092: 12, // chunkserver 2
+		8093: 13, // chunkserver 3
+		8094: 14, //chunkserver 4
+		8095: 15, //chunkserver 5
 	}
 )
