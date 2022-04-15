@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 	"github.com/gin-gonic/gin"
 )
 
@@ -189,8 +188,7 @@ func reviveHandler(message structs.Message) {
 }
 
 func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
-	fmt.Println("YOOOOOOOOOOOOOOOOOOOO ", repMsg.TargetCS)
-	time.Sleep(time.Second * 5)
+	//time.Sleep(time.Second * 5)
 	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
 	fmt.Println("____________________ Source: ", repMsg.Sources, "________________________")
 	helper.SendRepMsg(repMsg, repMsg.Sources[chunkServerIdx])
@@ -308,7 +306,6 @@ func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrit
 	return filteredOutput
 }
 
-
 func listen(nodePid int, portNo int) {
 
 	router := gin.Default()
@@ -325,14 +322,3 @@ func listen(nodePid int, portNo int) {
 func ChunkServer(nodePid int, portNo int) {
 	go listen(nodePid, portNo)
 }
-
-// var ACKMap sync.Map
-
-// func runTimer(repMsg structs.RepMsg,chunkServerIdx int){
-// 	t := time.After(100 * time.Second)
-// 	select{
-// 	case <- t:
-// 		if
-// 		fmt.Printf("%v: Replication Timeout, trying next server", repMsg.TargetCS)
-// 	}
-// }
