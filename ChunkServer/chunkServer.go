@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	// "time"
+	"time"
 	"github.com/gin-gonic/gin"
 )
 
@@ -189,7 +189,8 @@ func reviveHandler(message structs.Message) {
 }
 
 func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
-	// set timer message?
+	fmt.Println("YOOOOOOOOOOOOOOOOOOOO ", repMsg.TargetCS)
+	time.Sleep(time.Second * 5)
 	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
 	fmt.Println("____________________ Source: ", repMsg.Sources, "________________________")
 	helper.SendRepMsg(repMsg, repMsg.Sources[chunkServerIdx])

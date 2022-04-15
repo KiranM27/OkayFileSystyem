@@ -90,7 +90,7 @@ func splitFile(oldFilename string)(uint64){
 		// Get file data
 		fileInfo, _ := file.Stat()
 		var fileSize int64 = fileInfo.Size()
-		const fileChunk = 2500 // 2.5 KB
+		const fileChunk = helper.CHUNK_SIZE // 2.5 KB
 
 		// calculate total number of parts the file will be chunked into
 		totalPartsNum := uint64(math.Ceil(float64(fileSize) / float64(fileChunk)))
