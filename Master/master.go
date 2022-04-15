@@ -134,7 +134,7 @@ func appendMessageHandler(message structs.Message) {
 	} else {
 		// if file is not new
 		// fmt.Println("Master received old file from Client")
-		fmt.Println("CHECK THIS ",  metaData.fileIdToChunkId[message.Filename])
+		fmt.Println("CHECK THIS ", metaData.fileIdToChunkId[message.Filename])
 		fileNotNew(message)
 
 	}
@@ -148,10 +148,12 @@ func readHandler(readMsg structs.ReadMsg) structs.ReadMsg {
 
 func fileNotNew(message structs.Message) {
 	chunkId := metaData.fileIdToChunkId[message.Filename][len(metaData.fileIdToChunkId[message.Filename])-1]
-	if helper.CHUNK_SIZE - metaData.chunkIdToOffset[chunkId] <= message.PayloadSize {
+	if helper.CHUNK_SIZE-metaData.chunkIdToOffset[chunkId] <= message.PayloadSize {
 		newChunkNo := len(metaData.fileIdToChunkId[message.Filename])
 		newChunkId := message.Filename + "_c" + strconv.Itoa(newChunkNo)
+		fmt.Println("NEW CHUNK NEW CHUNK NEW CHUNK", newChunkId, message)
 		createNewFile(newChunkId, message)
+		return
 	}
 
 	//create message to send to client
@@ -164,7 +166,7 @@ func fileNotNew(message structs.Message) {
 
 	message1 := structs.Message{
 		MessageType: helper.DATA_APPEND,
-		// master, primary, secondary_1, secondary_2
+		// client, primary, secondary_1, secondary_2
 		Ports:          messagePorts, // [C, P, S1, S2]
 		Pointer:        0,
 		SourceFilename: message.SourceFilename,
