@@ -11,6 +11,11 @@ func InfiniteLoop() {
 	for {}
 }
 
+func CreateLogFiles() {
+	helper.CreateFile(helper.START_TIMES_LOG_FILE)
+	helper.CreateFile(helper.END_TIMES_LOG_FILE)
+}
+
 func SingleWriteTest() {
 	go client.InitWriteClient(7, 8087, "ChunkingTest0.txt", "shared_chunk.txt")
 	InfiniteLoop()
@@ -44,7 +49,11 @@ func ReadChunkTest(noOfClients int) {
 	InfiniteLoop()
 }
 
+
+
 func main() {
+	CreateLogFiles()
+
 	// Test for the Append Fucntion.
 	// One write by a single client.
 	// SingleWriteTest()
@@ -56,5 +65,5 @@ func main() {
 	ConcurrentWritesTest(10)
 
 	// Read operation by a client.
-	// ReadChunkTest()
+	// ReadChunkTest(4)
 }

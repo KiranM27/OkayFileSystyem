@@ -10,7 +10,7 @@ const (
 
 	// Ports
 	MASTER_SERVER_PORT = 8080
-	CLIENT_START_PORT = 8060
+	CLIENT_START_PORT  = 8060
 
 	// Message Types
 	DATA_APPEND        = "DATA_APPEND"      // send chunk data to append
@@ -40,6 +40,8 @@ const (
 	DATA_DIR      = "/data"          // directory where the chunk servers store their data
 	TEST_DIR      = "/test"          // directory where files corresponding to testing are stored
 	TEST_DATA_DIR = "/test/testData" // directory where data corresponding to testing is stored
+	START_TIMES_LOG_FILE = "StartTimes.log"
+	END_TIMES_LOG_FILE = "EndTimes.log"
 
 	// Unicode 1 Byte character that is used for padding
 	PADDING = "~"
@@ -50,6 +52,7 @@ const (
 	CHUNK_SIZE               = 25
 	INITIAL_NUM_CHUNKSERVERS = 5
 	DEFAULT_TIMEOUT          = 5 * time.Second
+	HEARTBEAT_TIMEOUT        = 10 * time.Second
 )
 
 var (

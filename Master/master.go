@@ -51,7 +51,6 @@ type MetaData struct {
 	successfulWrites     map[string][]structs.SuccessfulWrite
 }
 
-// Placeholder - TODO: Add proper replication message struct to message.go
 
 func listen(nodePid int, portNo int) {
 	router := gin.New()
@@ -281,7 +280,6 @@ func sendHeartbeat() {
 				}
 				go helper.SendMessage(heartbeatMsg)
 			case Pending: // No reply from the previous heartbeat, consider the chunk server dead
-				// TODO: SEND HERE
 				go startReplicate(liveServer) // give the port number to function
 				metaData.heartBeatAck.Store(liveServer, Dead)
 			case Alive: // Successfully received ack from previous heartbeat, send next heartbeat
@@ -298,7 +296,7 @@ func sendHeartbeat() {
 
 		}
 
-		time.Sleep(helper.DEFAULT_TIMEOUT)
+		time.Sleep(helper.HEARTBEAT_TIMEOUT)
 	}
 }
 
@@ -370,8 +368,6 @@ func startReplicate(chunkServerId int) error {
 		temporaryReplicationMap[replicateServer] = append(temporaryReplicationMap[replicateServer], newReplication)
 	}
 	lock.Unlock()
-	// 3g - Send to target [NOT DONE]
-	// TODO - New SendMessage for Replication Message
 	for _, replicationMsgs := range temporaryReplicationMap {
 		for _, repMessage := range replicationMsgs {
 			go helper.SendRepMsg(repMessage, repMessage.TargetCS) // need new helper function for rep msg
@@ -435,13 +431,11 @@ func choose_n_random_chunkServers() []int {
 		}
 	}
 	return res
-
 }
 
 //this will select random keys in the map
 func MapRandomKeyGet(mapI interface{}) interface{} {
 	keys := reflect.ValueOf(mapI).MapKeys()
-
 	return keys[rand.Intn(len(keys))].Interface()
 }
 
@@ -470,27 +464,3 @@ func main() {
 	listen(0, helper.MASTER_SERVER_PORT)
 
 }
-
-/*
-// Priority: Best case [ DONE ]
-// ASSUME ALL REPLY for now
-// 1. Send Heartbeat to ChunkServers
-// 2. Listen for Heartbeat
-// 3. Update HeartbeatAck accordingly
-
-// Next case: Dead chunk server
-// Assume a node fails, master does not receive ACK
-// 1. Implement states
-// 2. Update HeartbeatAck
-
- 3. Check metadata of chunk server that failed
- 		3a. Get ALL chunk ID from chunkServerToChunkId
- 			3b. Get available chunk servers for each chunk ID, check chunkIdToChunkserver (c1: [chunkserver1, chunkserver2])
-			3c. Get chunk servers that do not have chunk, check chunkIdToChunkserver (c1: [chunkserver3, chunkserver4])
-			3d. Select which chunk server you want to replicate to. (ChunkId : c1, Target: chunkserver3, Sources: chunkserver1, chunkserver2)
- 			3e. Remove chunkId from chunkIdToChunkserver and chunkIdToChunkserver
-		3f. Add struct to rep map (Chunkserver3 : [(ChunkId : c1, Sources: chunkserver1, chunkserver2), ...]
-		3g. Send to target Chunkserver
-		3h. After receiving ACK REPLICATION from chunkserver 3, remove entry from rep map
-		3i. Update Metadata
-*/
