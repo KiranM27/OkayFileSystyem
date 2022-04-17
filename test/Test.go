@@ -2,62 +2,59 @@ package main
 
 import (
 	client "oks/Client"
-	time "time"
+	helper "oks/Helper"
+	"fmt"
+	"time"
 )
 
-func singleWrite() {
-	go client.InitWriteClient(7, 8087, "test1.txt", "shared_chunk.txt")
-	for {
-	}
+func InfiniteLoop() {
+	for {}
 }
 
-func concurrentWrites() {
-	go client.InitWriteClient(1, 8081, "test0.txt", "shared_chunk.txt")
-	go client.InitWriteClient(2, 8082, "test1.txt", "shared_chunk.txt")
-	go client.InitWriteClient(3, 8083, "test2.txt", "shared_chunk1.txt")
-	go client.InitWriteClient(4, 8084, "test3.txt", "shared_chunk1.txt")
-	go client.InitWriteClient(5, 8085, "test4.txt", "shared_chunk1.txt")
-
-	//go client.InitWriteClient(5, 8089, "test0.txt", "shared_chunk.txt")
-
-	for {
-	}
+func SingleWriteTest() {
+	go client.InitWriteClient(7, 8087, "ChunkingTest0.txt", "shared_chunk.txt")
+	InfiniteLoop()
 }
 
-func consecutiveWrites() {
-	go client.InitWriteClient(7, 8087, "test2.txt", "shared_chunk.txt")
-	time.Sleep(time.Second * 5)
-	go client.InitWriteClient(8, 8088, "test1.txt", "shared_chunk.txt")
-	for {
+func ConcurrentWritesTest(noOfClients int) {
+	CLIENT_START_PORT := helper.CLIENT_START_PORT
+	for i := 0; i < noOfClients; i++ {
+		go client.InitWriteClient(i, CLIENT_START_PORT + i, fmt.Sprintf("ChunkingTest%d.txt", i), "shared_chunk.txt")
 	}
+	InfiniteLoop()
 }
 
-func chunkingWrites() {
-	go client.InitWriteClient(7, 8087, "test.txt", "shared_chunk.txt")
-	for {
-	}
+func ConsecutiveWritesTest() {
+	go client.InitWriteClient(7, 8087, "ChunkingTest0.txt", "shared_chunk.txt")
+	time.Sleep(time.Second * 2)
+	go client.InitWriteClient(8, 8088, "ChunkingTest1.txt", "shared_chunk.txt")
+	InfiniteLoop()
 }
 
-func readChunk() {
-	go client.InitReadClient(1, 8081, "shared_chunk.txt_c0")
-	go client.InitReadClient(2, 8082, "shared_chunk.txt_c0")
-	go client.InitReadClient(3, 8083, "shared_chunk.txt_c0")
-	go client.InitReadClient(4, 8084, "shared_chunk.txt_c0")
-	go client.InitReadClient(5, 8085, "shared_chunk.txt_c0")
-	go client.InitReadClient(6, 8086, "shared_chunk.txt_c0")
-
-	for {
-	}
+func ChunkingWritesTest() {
+	go client.InitWriteClient(7, 8087, "ChunkingTest.txt", "shared_chunk.txt")
+	InfiniteLoop()
 }
 
-//
+func ReadChunkTest(noOfClients int) {
+	CLIENT_START_PORT := helper.CLIENT_START_PORT
+	for i := 0; i < noOfClients; i++ {
+		go client.InitReadClient(i, CLIENT_START_PORT + i, "shared_chunk_c0")
+	}
+	InfiniteLoop()
+}
+
 func main() {
-	//singleWrite()
-	//chunkingWrites()
+	// Test for the Append Fucntion.
+	// One write by a single client.
+	// SingleWriteTest()
 
-	//concurrentWrites()
-	readChunk()
+	// Multiple concurrent writes by a single client.
+	// ChunkingWritesTest()
+
+	// Concurrent Writes by multiple clients.
+	ConcurrentWritesTest(10)
+
+	// Read operation by a client.
+	// ReadChunkTest()
 }
-
-// uint64=13875145260 088531144
-// uint64=13875145260 785567868 end

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
+	"path/filepath"
 )
 
 func PathExists(path string) (bool, error) {
@@ -43,4 +45,10 @@ func ReadFile(path string) string {
 		return string(content)
 	}
 	return NULL
+}
+
+// Helper to remove extensions [Done]
+func RemoveExtension(fpath string) string {
+	ext := filepath.Ext(fpath)
+	return strings.TrimSuffix(fpath, ext)
 }

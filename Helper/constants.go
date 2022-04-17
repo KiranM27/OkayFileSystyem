@@ -10,6 +10,7 @@ const (
 
 	// Ports
 	MASTER_SERVER_PORT = 8080
+	CLIENT_START_PORT = 8060
 
 	// Message Types
 	DATA_APPEND        = "DATA_APPEND"      // send chunk data to append
@@ -54,7 +55,7 @@ const (
 var (
 	PORT_PID_MAP = map[int]int{ // Maps ports to pids.
 		8080: 1,  // Master Server
-		8081: 2,  // client
+		8060: 2,  // client
 		8091: 11, // chunkserver 1
 		8092: 12, // chunkserver 2
 		8093: 13, // chunkserver 3

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"io/ioutil"
-	"strings"
 	"encoding/json"
 	"net/http"
 	structs "oks/Structs"
@@ -57,14 +56,11 @@ func getFileSize(filename string) (int64) {
     if err != nil {
         panic(err)
     }
-    fmt.Println("getFileSize path ", rel) // debug
-
 	file, _ := os.Open(rel)
 	fi, err := file.Stat()
 	if err != nil {
 	// Could not obtain stat, handle error
 	}
-	fmt.Printf("%s is %d bytes long\n", filename, fi.Size()) // debug
 	return fi.Size()
 
 }
@@ -94,7 +90,6 @@ func splitFile(oldFilename string)(uint64){
 
 		// calculate total number of parts the file will be chunked into
 		totalPartsNum := uint64(math.Ceil(float64(fileSize) / float64(fileChunk)))
-		fmt.Printf("Splitting to %d pieces.\n", totalPartsNum)
 		for i := uint64(0); i < totalPartsNum; i++ {
 
 			partSize := int(math.Min(fileChunk, float64(fileSize-int64(i*fileChunk))))
@@ -107,7 +102,7 @@ func splitFile(oldFilename string)(uint64){
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			rel = removeExtension(rel)
+			rel = helper.RemoveExtension(rel)
 			fileName := rel + strconv.FormatUint(i, 10) + ".txt"
 			_, err = os.Create(fileName)
 			if err != nil {
@@ -116,15 +111,8 @@ func splitFile(oldFilename string)(uint64){
 			}
 			// write/save buffer to disk
 			ioutil.WriteFile(fileName, partBuffer, os.ModeAppend)
-			fmt.Println("Split to : ", fileName)
 		}
 		return totalPartsNum
-}
-
-// Helper to remove extensions [Done]
-func removeExtension(fpath string) string {
-	ext := filepath.Ext(fpath)
-	return strings.TrimSuffix(fpath, ext)
 }
 
 // Helper to read file

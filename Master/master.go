@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
 	"errors"
 	"math/rand"
 	chunkServer "oks/ChunkServer"
@@ -55,7 +54,11 @@ type MetaData struct {
 // Placeholder - TODO: Add proper replication message struct to message.go
 
 func listen(nodePid int, portNo int) {
-	router := gin.Default()
+	router := gin.New()
+    router.Use(
+        gin.LoggerWithWriter(gin.DefaultWriter, "/message", "/replicate", "/read"),
+        gin.Recovery(),
+    )
 	router.POST("/message", postMessageHandler)
 	router.POST("/replicate", repMessageHandler)
 	router.POST("/read", readMessagehandler)
@@ -100,8 +103,6 @@ func repMessageHandler(context *gin.Context) {
 		return
 	}
 	context.IndentedJSON(http.StatusOK, repMsg.MessageType+" Received")
-	fmt.Println("---------- Received Replication Message: ", repMsg.MessageType, " ----------")
-
 	switch repMsg.MessageType {
 	case helper.ACK_REPLICATION:
 		receiveReplicationACK(repMsg)
@@ -128,18 +129,15 @@ func ackCommitHandler(message structs.Message) {
 }
 
 func appendMessageHandler(message structs.Message) {
-	fmt.Println("Before Sending")
+	fmt.Println("Master has received a append request from client - ", message.Ports[0], " - for file - ", message.SourceFilename)
 	if _, ok := metaData.fileIdToChunkId[message.Filename]; !ok {
-		// if file does not exist in metaData, create a new entry
-		// fmt.Println("Master received new file from Client")
-		fmt.Println("THIS CHECK ", metaData.fileIdToChunkId[message.Filename])
+		// File does not exist in metaData, create a new entry
+		fmt.Println("File doesn't exist in OFS. Creating the file - ", message.SourceFilename, " - in OFS now.")
 		newFileAppend(message)
 	} else {
-		// if file is not new
-		// fmt.Println("Master received old file from Client")
-		fmt.Println("CHECK THIS ", metaData.fileIdToChunkId[message.Filename])
+		// File exists in the OFS, try to append to it
+		fmt.Println("File exists in OFS. Will try to append to file - ", message.SourceFilename, " - in OFS now.")
 		fileNotNew(message)
-
 	}
 }
 
@@ -151,10 +149,10 @@ func readHandler(readMsg structs.ReadMsg) structs.ReadMsg {
 
 func fileNotNew(message structs.Message) {
 	chunkId := metaData.fileIdToChunkId[message.Filename][len(metaData.fileIdToChunkId[message.Filename])-1]
+	fileName := helper.RemoveExtension(message.Filename)
 	if helper.CHUNK_SIZE-metaData.chunkIdToOffset[chunkId] <= message.PayloadSize {
 		newChunkNo := len(metaData.fileIdToChunkId[message.Filename])
-		newChunkId := message.Filename + "_c" + strconv.Itoa(newChunkNo)
-		fmt.Println("NEW CHUNK NEW CHUNK NEW CHUNK", newChunkId, message)
+		newChunkId := fileName + "_c" + strconv.Itoa(newChunkNo)
 		createNewFile(newChunkId, message)
 		return
 	}
@@ -180,7 +178,6 @@ func fileNotNew(message structs.Message) {
 		ChunkOffset:    metaData.chunkIdToOffset[chunkId],
 		RecordIndex:    message.RecordIndex,
 	}
-	// fmt.Println("Master sending request to primary chunkserver")
 	helper.SendMessage(message1)
 
 	// increment offset
@@ -191,8 +188,8 @@ func fileNotNew(message structs.Message) {
 
 // Client wants to append to a new file
 func newFileAppend(message structs.Message) {
-	// create new entry in MetaData
-	chunkId := message.Filename + "_c0"
+	fileName := helper.RemoveExtension(message.Filename)
+	chunkId := fileName + "_c0"
 	createNewFile(chunkId, message)
 }
 
@@ -202,11 +199,10 @@ func createNewFile(chunkId string, message structs.Message) {
 	if val, ok := metaData.fileIdToChunkId[message.Filename]; ok {
 		tempChunkList = append(tempChunkList, val...)
 	}
-	fmt.Println(tempChunkList)
 	metaData.fileIdToChunkId[message.Filename] = append(tempChunkList, chunkId)
 	lock.Unlock()
+
 	// ask 3 chunkserver to create chunks
-	fmt.Println("Master choosing 3 chunkservers")
 	new_chunkServer := choose_n_random_chunkServers()
 	messagePorts := message.Ports // [C, M]
 	messagePorts = append(messagePorts, new_chunkServer...)
@@ -224,7 +220,6 @@ func createNewFile(chunkId string, message structs.Message) {
 		ChunkOffset:    0,
 		RecordIndex:    message.RecordIndex,
 	}
-	fmt.Println("Master sending request to primary chunkserver ", message1)
 	helper.SendMessage(message1)
 
 	// increment offset
@@ -236,11 +231,8 @@ func createNewFile(chunkId string, message structs.Message) {
 // after receiving ack from primary, approve request for client
 func ackChunkCreate(message structs.Message) {
 	messagePorts := message.Ports // [C, M, P, S1, S2]
-	// fmt.Println("[C, M, P, S1, S2]", messagePorts)
 	messagePorts = append([]int{messagePorts[0]}, messagePorts[2:]...) //[C, P, S1, S2]
-	// fmt.Println("CHUNK CREATED - PRIOR UPDATING PORTS [C, P, S1, S2]", messagePorts)
 	chunkServers := messagePorts[1:]
-	// fmt.Println(chunkServers)
 
 	message1 := structs.Message{
 		MessageType:    helper.DATA_APPEND,
@@ -254,7 +246,6 @@ func ackChunkCreate(message structs.Message) {
 		ChunkOffset:    0,
 		RecordIndex:    message.RecordIndex,
 	}
-	fmt.Println("Master approving append request to client - ", message1)
 	helper.SendMessage(message1)
 
 	//record in metaData
@@ -263,7 +254,6 @@ func ackChunkCreate(message structs.Message) {
 		metaData.chunkServerToChunkId[v] = append(metaData.chunkServerToChunkId[v], message.ChunkId)
 	}
 	metaData.chunkIdToChunkserver[message.ChunkId] = chunkServers
-	fmt.Println(metaData.chunkIdToChunkserver[message.ChunkId])
 
 	// increment offset
 	// new_offset := metaData.chunkIdToOffset[message.ChunkId] + message1.PayloadSize
@@ -279,7 +269,6 @@ func (m heartState) String() string {
 func sendHeartbeat() {
 
 	for {
-		// metaData.printACKMap()
 		for _, liveServer := range liveChunkServers {
 			currentHeartState, _ := metaData.heartBeatAck.Load(liveServer)
 			switch currentHeartState {
@@ -327,9 +316,7 @@ func startReplicate(chunkServerId int) error {
 				if len(metaData.chunkIdToChunkserver[failedChunkId]) == 1 { // edge case, only element in list
 					return errors.New("Write Failed for Replication of chunk " + failedChunkId)
 				} else {
-					fmt.Println("REMOVING THE FAILED CHUNK NOW")
 					metaData.chunkIdToChunkserver[failedChunkId] = append(metaData.chunkIdToChunkserver[failedChunkId][:idx], metaData.chunkIdToChunkserver[failedChunkId][idx+1:]...)
-					fmt.Println(metaData.chunkIdToChunkserver[failedChunkId])
 				}
 				break
 			}
@@ -387,7 +374,6 @@ func startReplicate(chunkServerId int) error {
 	// TODO - New SendMessage for Replication Message
 	for _, replicationMsgs := range temporaryReplicationMap {
 		for _, repMessage := range replicationMsgs {
-			fmt.Println(repMessage.ChunkId, repMessage.TargetCS)
 			go helper.SendRepMsg(repMessage, repMessage.TargetCS) // need new helper function for rep msg
 		}
 	}
@@ -425,15 +411,6 @@ func receiveHeartbeatACK(message structs.Message) {
 	metaData.heartBeatAck.Store(message.Ports[1], Alive)
 }
 
-func (m *MetaData) printACKMap() {
-	//fmt.Println(m.heartBeatAck)
-	// Ignore any error from here, works just fine
-	m.heartBeatAck.Range(func(k, v interface{}) bool {
-		fmt.Println(k, v)
-		return true
-	})
-}
-
 func choose_n_random_chunkServers() []int {
 
 	chunkServerArray := make(map[int]bool)
@@ -452,8 +429,6 @@ func choose_n_random_chunkServers() []int {
 		if chunkServerArray[random_key] == false {
 			chunkServerArray[random_key] = true
 			res = append(res, random_key)
-			fmt.Println(res)
-
 		} else {
 			//if the chunkS[random_key]==true, it means that the random key has been added into the res array
 			continue
