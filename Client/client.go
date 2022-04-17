@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 	"github.com/gin-gonic/gin"
+	"strings"
 )
 
 var ACKMap sync.Map
@@ -55,8 +56,15 @@ func readChunk(chunkId string) string {
 	var recReadMsg structs.ReadMsg
 	json.Unmarshal(resBody, &recReadMsg)
 	recReadMsg.SetMessageType(helper.READ_REQ_TO_CHUNK)
-	content := helper.SendReadMsg(recReadMsg, recReadMsg.Sources[0])
-	return string(content)
+	sources := recReadMsg.Sources
+	for index, source := range recReadMsg.Sources {
+		recReadMsg.SetSources(sources[index:])
+		content := helper.SendReadMsg(recReadMsg, source)[1:]
+		if (!strings.HasPrefix(string(content), helper.NULL)) {
+			return string(content)
+		}
+	}
+	return helper.NULL
 }
 
 // Send a request to Master that client wants to append
