@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
+	"math"
 	client "oks/Client"
 	helper "oks/Helper"
+	"os"
 	"strconv"
 	"strings"
 	"time"
-	"math"
 )
 
 func InfiniteLoop() {
@@ -91,21 +92,37 @@ func ReadChunkTest(noOfClients int) {
 }
 
 func main() {
-	// CreateLogFiles()
+	CALC := "calc"
+	SW := "sw"
+	CWSC := "cwsc"
+	CWMC := "cwmc"
+	READ := "read"
 
-	// Test for the Append Fucntion.
-	// One write by a single client.
-	// SingleWriteTest()
+	operation := os.Args[1]
+	if operation == CALC {
+		DetermineOperationTime()
+		return
+	}
 
-	// Multiple concurrent writes by a single client.
-	// ChunkingWritesTest()
-
-	// Concurrent Writes by multiple clients.
-	// ConcurrentWritesTest(10)
-
-	// Read operation by a client.
-	// ReadChunkTest(4)
-
-	// Determine the duration of the operation.
-	DetermineOperationTime()
+	CreateLogFiles() // Create Log Files to store time logs.
+	switch operation {
+	case SW: // One write by a single client.
+		SingleWriteTest()
+	case CWSC: // Multiple concurrent writes by a single client.
+		ChunkingWritesTest()
+	case CWMC: // Concurrent Writes by multiple clients.
+		if len(os.Args) < 3 {
+			fmt.Println("Please add the number of clients in the arguments.")
+			return
+		}
+		noClients, _ := strconv.Atoi(os.Args[2])
+		ConcurrentWritesTest(noClients)
+	case READ: // Read operations by n clients.
+		if len(os.Args) < 3 {
+			fmt.Println("Please add the number of clients in the arguments.")
+			return
+		}
+		noClients, _ := strconv.Atoi(os.Args[2])
+		ReadChunkTest(noClients)
+	}
 }
