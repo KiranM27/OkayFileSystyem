@@ -1,7 +1,5 @@
 package client
 
-// Client works on only one append operration at a time !!
-
 import (
 	"encoding/json"
 	"fmt"
@@ -12,7 +10,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
 	"github.com/gin-gonic/gin"
 )
 
