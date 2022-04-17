@@ -8,13 +8,17 @@ import (
 	"net/http"
 	helper "oks/Helper"
 	structs "oks/Structs"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
+
 	"github.com/gin-gonic/gin"
 )
 
 var ACKMap sync.Map
+var StartTimeLogLock sync.Mutex
+var EndTimeLogLock sync.Mutex
 
 func listen(id int, portNumber int) {
 	router := gin.New()
@@ -124,7 +128,7 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 				Ports:          []int{clientPort, helper.MASTER_SERVER_PORT}, // 0 is client, 1 is master
 				Pointer:        1,
 				SourceFilename: smallFileName,
-				Filename:       OFSFilename, // TODO: This should be the same file name still right
+				Filename:       OFSFilename,
 				PayloadSize:    smallFileSize,
 				RecordIndex:    uint64(recordIndex),
 			}
@@ -133,7 +137,6 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 			helper.SendMessage(message)
 			go runTimer(message)
 		}
-
 	}
 }
 
@@ -146,7 +149,6 @@ func runTimer(message structs.Message) {
 		case <-timer.C:
 			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
 			if ACKMapClientRecords != nil {
-				//finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord))-1]
 				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex]
 				if finalRecord.Acked {
 					fmt.Println("Client ", clientPort, ": No timeout for ", message.MessageType,  " request of file - ", message.Filename)
@@ -180,6 +182,7 @@ func confirmWrite(message structs.Message) {
 }
 
 func finishAppend(message structs.Message) {
+	end := time.Now()
 	clientPort := message.Ports[0]                    // 0 index is client port
 	ACKMapClientRecords, _ := ACKMap.Load(clientPort) // 0 index is client port
 	ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex].SetAcked(true)
@@ -189,16 +192,28 @@ func finishAppend(message structs.Message) {
 	message.SetPorts([]int{clientPort, helper.MASTER_SERVER_PORT})
 	message.Forward()
 	helper.SendMessage(message)
+	appendToLogFiles(helper.END_TIMES_LOG_FILE, strconv.Itoa(int(end.UnixNano())))
+}
+
+func appendToLogFiles(fname string, content string) {
+	fpath := filepath.Join("..", helper.TEST_DIR, fname)
+	switch fname {
+	case helper.START_TIMES_LOG_FILE:
+		StartTimeLogLock.Lock()
+		helper.AppendToFile(fpath, content)
+		StartTimeLogLock.Unlock()
+	case helper.END_TIMES_LOG_FILE:
+		EndTimeLogLock.Lock()
+		helper.AppendToFile(fpath, content)
+		EndTimeLogLock.Unlock()
+	}
 }
 
 func InitWriteClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
 	go listen(id, portNumber)
-	// start := time.Now()
+	start := time.Now()
 	requestMasterAppend(portNumber, sourceFilename, OFSFilename)
-	// end := time.Now()
-	// fmt.Printf("Start Time for client %d : %.2f\n", id, start)
-	// fmt.Printf("End Time for client %d : %.2f\n", id, end)
-	// fmt.Printf("Append Time taken = %.2f seconds \n", end.Sub(start).Seconds())
+	appendToLogFiles(helper.START_TIMES_LOG_FILE, strconv.Itoa(int(start.UnixNano())))
 	for {
 
 	}
@@ -208,12 +223,10 @@ func InitReadClient(id int, portNumber int, chunkId string) {
 	go listen(id, portNumber)
 	start := time.Now()
 	content := readChunk(chunkId)
-	fmt.Println("The follwing is the text that was read from chunk with chunkId - ", chunkId, " - Data - ", content)
 	end := time.Now()
-	fmt.Printf("Start Time for client %d : %.2f\n", id, start)
-	fmt.Printf("End Time for client %d : %.2f\n", id, end)
-
-	fmt.Printf("Read Time taken = %.2f seconds \n", end.Sub(start).Seconds())
+	fmt.Println("The follwing is the text that was read from chunk with chunkId - ", chunkId, " - Data - ", content)
+	appendToLogFiles(helper.START_TIMES_LOG_FILE, strconv.Itoa(int(start.UnixNano())))
+	appendToLogFiles(helper.END_TIMES_LOG_FILE, strconv.Itoa(int(end.UnixNano())))
 	for {
 
 	}
