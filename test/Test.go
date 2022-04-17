@@ -31,7 +31,7 @@ func consecutiveWrites() {
 }
 
 func chunkingWrites() {
-	go client.InitWriteClient(7, 8087, "test.txt", "shared_chunk.txt")
+	go client.InitWriteClient(7, 8087, "ChunkingTest.txt", "shared_chunk.txt")
 	for {
 	}
 }
@@ -51,9 +51,9 @@ func readChunk() {
 //
 func main() {
 	//singleWrite()
-	//chunkingWrites()
+	chunkingWrites()
 
-	concurrentWrites()
+	// concurrentWrites()
 	// readChunk()
 }
 
