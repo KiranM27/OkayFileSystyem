@@ -33,7 +33,6 @@ func postMessageHandler(context *gin.Context) {
 		return
 	}
 	context.IndentedJSON(http.StatusOK, message.MessageType+" Received")
-	fmt.Println("---------- Received Message: ", message.MessageType, " ----------")
 
 	portNo := strconv.Itoa(message.Ports[message.Pointer])
 	isNodealive, _ := aliveMap.Load(portNo)
@@ -74,8 +73,6 @@ func repMessageHandler(context *gin.Context) {
 		return
 	}
 	context.IndentedJSON(http.StatusOK, repMsg.MessageType+" Received")
-	fmt.Println("---------- Received Replication Message: ", repMsg.MessageType, " ----------")
-
 	isNodealive, _ := aliveMap.Load(portNo)
 	if isNodealive == false {
 		fmt.Println("Node " + portNo + " is dead and will not be responding to the incoming request.")
@@ -134,7 +131,7 @@ func commitDataHandler(message structs.Message) {
 	mutex.Lock()
 	err := writeMutation(message.ChunkId, message.ChunkOffset, message.GenerateUid(), message.Ports[message.Pointer])
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error during WriteMutation", err)
 	} else {
 		if message.Pointer == len(message.Ports)-1 {
 			message.Reply()
@@ -190,10 +187,7 @@ func reviveHandler(message structs.Message) {
 func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
 	//time.Sleep(time.Second * 5)
 	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
-	fmt.Println("____________________ Source: ", repMsg.Sources, "________________________")
 	helper.SendRepMsg(repMsg, repMsg.Sources[chunkServerIdx])
-	// ACKMap.Store(repMsg.TargetCS, )
-	// go runTimer(repMsg, chunkServerIdx)
 }
 
 func repDataRequestHandler(repMsg structs.RepMsg) {
@@ -204,7 +198,6 @@ func repDataRequestHandler(repMsg structs.RepMsg) {
 	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(chunkSourcePort))
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	content := helper.ReadFile(chunkPath)
-	fmt.Println("")
 	repMsg.SetMessageType(helper.REP_DATA_REPLY)
 	repMsg.SetPayload(content)
 	helper.SendRepMsg(repMsg, repMsg.TargetCS)
@@ -221,7 +214,7 @@ func repDataReplyHandler(repMsg structs.RepMsg) error {
 	createChunk(repMsg.TargetCS, chunkId)
 	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error while creating chunk", err)
 	}
 
 	defer fh.Close()
@@ -256,7 +249,7 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error while opening file", err)
 	}
 
 	defer fh.Close()
@@ -280,7 +273,7 @@ func writeMutation(chunkId string, chunkOffset int64, uid string, currentPort in
 	}
 
 	if _, err := fh.Write(writeDataBytes); err != nil {
-		fmt.Println(err)
+		fmt.Println("Error wile writing data to file", err)
 		return errors.New("Write Failed for UID " + uid)
 	}
 	return nil
@@ -308,8 +301,11 @@ func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrit
 
 func listen(nodePid int, portNo int) {
 
-	router := gin.Default()
-
+	router := gin.New()
+    router.Use(
+        gin.LoggerWithWriter(gin.DefaultWriter, "/message", "/replicate", "/read", "/"),
+        gin.Recovery(),
+    )
 	router.GET("/", landingPageHandler)
 	router.POST("/message", postMessageHandler)
 	router.POST("/replicate", repMessageHandler)

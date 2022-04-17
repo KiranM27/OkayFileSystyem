@@ -12,12 +12,10 @@ func singleWrite() {
 }
 
 func concurrentWrites() {
-	go client.InitWriteClient(1, 8081, "test0.txt", "shared_chunk.txt")
-	go client.InitWriteClient(2, 8082, "test1.txt", "shared_chunk.txt")
-	go client.InitWriteClient(3, 8083, "test2.txt", "shared_chunk1.txt")
-	go client.InitWriteClient(4, 8084, "test3.txt", "shared_chunk1.txt")
-	go client.InitWriteClient(5, 8085, "test4.txt", "shared_chunk1.txt")
-
+	go client.InitWriteClient(1, 8081, "ChunkingTest0.txt", "shared_chunk.txt")
+	go client.InitWriteClient(2, 8082, "ChunkingTest1.txt", "shared_chunk.txt")
+	go client.InitWriteClient(3, 8083, "ChunkingTest2.txt", "shared_chunk.txt")
+	go client.InitWriteClient(4, 8084, "ChunkingTest3.txt", "shared_chunk.txt")
 	//go client.InitWriteClient(5, 8089, "test0.txt", "shared_chunk.txt")
 
 	for {
@@ -55,8 +53,8 @@ func main() {
 	//singleWrite()
 	//chunkingWrites()
 
-	//concurrentWrites()
-	readChunk()
+	concurrentWrites()
+	// readChunk()
 }
 
 // uint64=13875145260 088531144

@@ -11,14 +11,17 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
 	"github.com/gin-gonic/gin"
 )
 
 var ACKMap sync.Map
 
 func listen(id int, portNumber int) {
-	router := gin.Default()
+	router := gin.New()
+    router.Use(
+        gin.LoggerWithWriter(gin.DefaultWriter, "/message"),
+        gin.Recovery(),
+    )
 	router.POST("/message", messageHandler)
 
 	fmt.Printf("Client %d listening on port %d \n", id, portNumber)
@@ -33,7 +36,7 @@ func messageHandler(context *gin.Context) {
 		fmt.Println("Invalid message object received.")
 		return
 	}
-	context.IndentedJSON(http.StatusOK, "New placeholder")
+	context.IndentedJSON(http.StatusOK, "Message received by the client")
 
 	switch message.MessageType {
 	case helper.DATA_APPEND:
@@ -64,7 +67,7 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 	// Call helper function to read source file size
 	sourceFileByteSize := getFileSize(sourceFilename)
 
-	// Check byte size of file, if more than 2.5kb split
+	// Check byte size of file. If it is more than 2.5kb - split the file ito chunks
 	if sourceFileByteSize > helper.CHUNK_SIZE {
 		numChunks = splitFile(sourceFilename)
 	} else {
@@ -95,20 +98,16 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 
 		ACKMap.Store(clientPort, ACKMapClientRecords)
 		// HTTP Request to Master
-		fmt.Println(strconv.Itoa(clientPort) + " Sending append request to Master")
+		fmt.Println("Client " + strconv.Itoa(clientPort) + " is sending append request to Master for file " + sourceFilename)
 		helper.SendMessage(message)
 		go runTimer(message)
-		// fmt.Println(strconv.Itoa(clientPort) + " Finished sending append request to Master")
 
 	} else {
-		// TODO: FIX RECORD INDEX - USE SOLN ABOVE, BUT NEED TO UPDATE FOR MULTIPLE RECORDS
-		sourceFilePrefix := removeExtension(sourceFilename)
+		sourceFilePrefix := helper.RemoveExtension(sourceFilename)
 
 		for i := uint64(0); i < numChunks; i++ {
 			smallFileName := sourceFilePrefix + strconv.FormatUint(i, 10) + ".txt"
 			smallFileSize := getFileSize(smallFileName)
-			fmt.Println(smallFileName) // debug
-			fmt.Println(smallFileSize) // debug
 
 			ACKMapClientRecords, _ := ACKMap.Load(clientPort)
 			if ACKMapClientRecords == nil {
@@ -129,10 +128,8 @@ func requestMasterAppend(clientPort int, sourceFilename string, OFSFilename stri
 				PayloadSize:    smallFileSize,
 				RecordIndex:    uint64(recordIndex),
 			}
-			//ACKMap.Store(int(message.RecordIndex), true)
 			ACKMap.Store(clientPort, ACKMapClientRecords)
-			// HTTP Request to Master
-			fmt.Println(strconv.Itoa(clientPort) + " Sending append request to Master")
+			fmt.Println(strconv.Itoa(clientPort) + "is sending append request to Master for file " + smallFileName)
 			helper.SendMessage(message)
 			go runTimer(message)
 		}
@@ -152,10 +149,10 @@ func runTimer(message structs.Message) {
 				//finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[len(ACKMapClientRecords.([]structs.ACKMAPRecord))-1]
 				finalRecord := ACKMapClientRecords.([]structs.ACKMAPRecord)[message.RecordIndex]
 				if finalRecord.Acked {
-					fmt.Println("No timeout for request by ", message.Ports[0], message)
+					fmt.Println("Client ", clientPort, ": No timeout for ", message.MessageType,  " request of file - ", message.Filename)
 					return
 				}
-				fmt.Println("Timeout, resending message")
+				fmt.Println("Client ", clientPort, ": Timeout for ", message.MessageType,  " request of file - ", message.Filename, ". Resending request now.")
 				helper.SendMessage(message)
 			}
 		}
@@ -166,11 +163,12 @@ func runTimer(message structs.Message) {
 func sendChunkAppend(message structs.Message) {
 	message.Forward()
 	message.Payload = readFile(message.SourceFilename)
+	clientPort := message.Ports[0]
+	PCS := message.Ports[1]
+	fileName := message.Filename
 
 	// HTTP Request to Primary Chunk
-	fmt.Println("Sending append request to Primary Chunk Server", message)
-	fmt.Println(message.Pointer, message.Ports)
-	//success := SendTimerMessage(message)
+	fmt.Println("Client ", clientPort, ": Sending append request to Primary Chunk Server - ", PCS, " - for file - ", fileName)
 	helper.SendMessage(message)
 }
 
@@ -194,26 +192,22 @@ func finishAppend(message structs.Message) {
 }
 
 func InitWriteClient(id int, portNumber int, sourceFilename string, OFSFilename string) {
-	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
 	go listen(id, portNumber)
-	start := time.Now()
+	// start := time.Now()
 	requestMasterAppend(portNumber, sourceFilename, OFSFilename)
-	end := time.Now()
-	fmt.Printf("Start Time for client %d : %.2f\n", id, start)
-	fmt.Printf("End Time for client %d : %.2f\n", id, end)
-	fmt.Printf("Append Time taken = %.2f seconds \n", end.Sub(start).Seconds())
+	// end := time.Now()
+	// fmt.Printf("Start Time for client %d : %.2f\n", id, start)
+	// fmt.Printf("End Time for client %d : %.2f\n", id, end)
+	// fmt.Printf("Append Time taken = %.2f seconds \n", end.Sub(start).Seconds())
 	for {
 
 	}
 }
 
 func InitReadClient(id int, portNumber int, chunkId string) {
-	fmt.Printf("Client %d is going up at %d\n", id, portNumber)
 	go listen(id, portNumber)
 	start := time.Now()
-
 	content := readChunk(chunkId)
-
 	fmt.Println("The follwing is the text that was read from chunk with chunkId - ", chunkId, " - Data - ", content)
 	end := time.Now()
 	fmt.Printf("Start Time for client %d : %.2f\n", id, start)
