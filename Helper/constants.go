@@ -36,12 +36,12 @@ const (
 	READ_RES         = "READ_RES"         // Response by Chunk
 
 	// Directories from root i.e.)
-	ROOT_DIR      = "OkayFileSystem" // Root dir
-	DATA_DIR      = "/data"          // directory where the chunk servers store their data
-	TEST_DIR      = "/test"          // directory where files corresponding to testing are stored
-	TEST_DATA_DIR = "/test/testData" // directory where data corresponding to testing is stored
+	ROOT_DIR             = "OkayFileSystem" // Root dir
+	DATA_DIR             = "/data"          // directory where the chunk servers store their data
+	TEST_DIR             = "/test"          // directory where files corresponding to testing are stored
+	TEST_DATA_DIR        = "/test/testData" // directory where data corresponding to testing is stored
 	START_TIMES_LOG_FILE = "StartTimes.log"
-	END_TIMES_LOG_FILE = "EndTimes.log"
+	END_TIMES_LOG_FILE   = "EndTimes.log"
 
 	// Unicode 1 Byte character that is used for padding
 	PADDING = "~"
@@ -49,7 +49,8 @@ const (
 
 	REP_COUNT = 3 // not tested fully with prev code
 
-	CHUNK_SIZE               = 25
+	CHUNK_SIZE               = 25 // bytes
+	CHUNK_CAPACITY           = 5 // chunks
 	INITIAL_NUM_CHUNKSERVERS = 5
 	DEFAULT_TIMEOUT          = 5 * time.Second
 	HEARTBEAT_TIMEOUT        = 10 * time.Second

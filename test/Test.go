@@ -59,7 +59,7 @@ func DetermineOperationTime() {
 }
 
 func SingleWriteTest() {
-	go client.InitWriteClient(7, 8087, "ChunkingTest0.txt", "shared_chunk.txt")
+	go client.InitWriteClient(7, 8087, "ChunkingTest1.txt", "shared_chunk.txt")
 	InfiniteLoop()
 }
 
@@ -83,10 +83,10 @@ func ChunkingWritesTest() {
 	InfiniteLoop()
 }
 
-func ReadChunkTest(noOfClients int) {
+func ReadChunkTest(noOfClients int, startOffset int64) {
 	CLIENT_START_PORT := helper.CLIENT_START_PORT
 	for i := 0; i < noOfClients; i++ {
-		go client.InitReadClient(i, CLIENT_START_PORT+i, "shared_chunk_c0")
+		go client.InitReadClient(i, CLIENT_START_PORT+i, "shared_chunk_c0", startOffset)
 	}
 	InfiniteLoop()
 }
@@ -123,6 +123,6 @@ func main() {
 			return
 		}
 		noClients, _ := strconv.Atoi(os.Args[2])
-		ReadChunkTest(noClients)
+		ReadChunkTest(noClients, 10)
 	}
 }

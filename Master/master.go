@@ -12,13 +12,13 @@ import (
 	structs "oks/Structs"
 	"reflect"
 	"strconv"
-
 	"github.com/gin-gonic/gin"
 )
 
 var metaData MetaData
 var lock sync.Mutex
 var liveChunkServers = []int{}
+var fullCapacityServers = []int{}
 var latestChunkServer = 8090
 
 type heartState int
@@ -421,6 +421,16 @@ func choose_n_random_chunkServers() []int {
 	for len(res) < helper.REP_COUNT {
 		//random key stores the key from the chunkS
 		random_key := MapRandomKeyGet(chunkServerArray).(int)
+
+		if len(metaData.chunkServerToChunkId[random_key]) >= helper.CHUNK_CAPACITY {
+			chunkServerArray[random_key] = true
+			if !Contains(fullCapacityServers, random_key) {
+				fullCapacityServers = append(fullCapacityServers, random_key)
+				fmt.Println("A new chunk server with port ", latestChunkServer, " has been spun up as chunk server ", random_key, " is full.")
+				spinUpNewCS(len(liveChunkServers) - 1)
+			}
+		}
+
 		// checking if this key boolean is false or true, if false append this key to the res and set the key value true instead
 		if chunkServerArray[random_key] == false {
 			chunkServerArray[random_key] = true
@@ -444,6 +454,13 @@ func (m *MetaData) initialiseACKMap(portNum int) {
 	m.heartBeatAck.Store(portNum, Start)
 }
 
+func spinUpNewCS(i int) {
+	go chunkServer.ChunkServer(i, latestChunkServer)
+	metaData.initialiseACKMap(latestChunkServer)
+	liveChunkServers = append(liveChunkServers, latestChunkServer)
+	latestChunkServer += 1
+}
+
 func main() {
 	metaData.fileIdToChunkId = make(map[string][]string)
 	metaData.chunkIdToChunkserver = make(map[string][]int)
@@ -453,11 +470,7 @@ func main() {
 	metaData.successfulWrites = make(map[string][]structs.SuccessfulWrite)
 	//metaData.initialiseACKMap()
 	for i := 0; i < helper.INITIAL_NUM_CHUNKSERVERS; i++ {
-
-		go chunkServer.ChunkServer(i, latestChunkServer)
-		metaData.initialiseACKMap(latestChunkServer)
-		liveChunkServers = append(liveChunkServers, latestChunkServer)
-		latestChunkServer += 1
+		spinUpNewCS(i)		
 	}
 
 	go sendHeartbeat()
