@@ -426,6 +426,7 @@ func choose_n_random_chunkServers() []int {
 			chunkServerArray[random_key] = true
 			if !Contains(fullCapacityServers, random_key) {
 				fullCapacityServers = append(fullCapacityServers, random_key)
+				chunkServerArray[latestChunkServer] = false
 				fmt.Println("A new chunk server with port ", latestChunkServer, " has been spun up as chunk server ", random_key, " is full.")
 				spinUpNewCS(len(liveChunkServers) - 1)
 			}
