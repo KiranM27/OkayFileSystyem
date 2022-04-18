@@ -233,12 +233,13 @@ func repDataReplyHandler(repMsg structs.RepMsg) error {
 func readReqHandler(readMsg structs.ReadMsg) string {
 	chunkId := readMsg.ChunkId
 	chunkSourcePort := readMsg.Sources[0]
+	startOffset, _ := strconv.Atoi(readMsg.Payload)
 	pwd, _ := os.Getwd()
 	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
 	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(chunkSourcePort))
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
 	content := helper.ReadFile(chunkPath)
-	filteredOutput := filterContentBySW(content, readMsg.SuccessfulWrites)
+	filteredOutput := filterContentBySW(content, readMsg.SuccessfulWrites, startOffset)
 	return filteredOutput
 }
 
@@ -289,11 +290,13 @@ func createChunk(portNo int, chunkId string) {
 	helper.CreateFile(chunkPath)
 }
 
-func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrite) string {
+func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrite, startOffset int) string {
 	_content := []byte(content)
 	var output []byte
 	for _, SW := range successfulWrites {
-		output = append(output, _content[SW.Start:SW.End]...)
+		if SW.End > int64(startOffset) {
+			output = append(output, _content[SW.Start:SW.End]...)
+		}
 	}
 	filteredOutput := string(output)
 	return filteredOutput

@@ -50,12 +50,13 @@ func messageHandler(context *gin.Context) {
 	}
 }
 
-func readChunk(chunkId string) string {
+func readChunk(chunkId string, startOffset int64) string {
 	readMsg := structs.GenerateReadMsgV2(helper.READ_REQ_TO_MASTER, chunkId)
 	resBody := helper.SendReadMsg(readMsg, helper.MASTER_SERVER_PORT)
 	var recReadMsg structs.ReadMsg
 	json.Unmarshal(resBody, &recReadMsg)
 	recReadMsg.SetMessageType(helper.READ_REQ_TO_CHUNK)
+	recReadMsg.SetPayload(strconv.Itoa(int(startOffset)))
 	sources := recReadMsg.Sources
 	for index, source := range recReadMsg.Sources {
 		recReadMsg.SetSources(sources[index:])
@@ -224,10 +225,10 @@ func InitWriteClient(id int, portNumber int, sourceFilename string, OFSFilename 
 	}
 }
 
-func InitReadClient(id int, portNumber int, chunkId string) {
+func InitReadClient(id int, portNumber int, chunkId string, startOffset int64 ) {
 	go listen(id, portNumber)
 	start := time.Now()
-	content := readChunk(chunkId)
+	content := readChunk(chunkId, startOffset)
 	end := time.Now()
 	fmt.Println("The follwing is the text that was read from chunk with chunkId - ", chunkId, " - Data - ", content)
 	appendToLogFiles(helper.START_TIMES_LOG_FILE, strconv.Itoa(int(start.UnixNano())))
