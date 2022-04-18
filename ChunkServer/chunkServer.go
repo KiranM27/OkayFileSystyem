@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -81,7 +83,7 @@ func repMessageHandler(context *gin.Context) {
 
 	switch repMsg.MessageType {
 	case helper.REPLICATE:
-		go replicateHandler(repMsg, 0)
+		go replicateHandler(repMsg)
 	case helper.REP_DATA_REQUEST:
 		go repDataRequestHandler(repMsg)
 	case helper.REP_DATA_REPLY:
@@ -184,10 +186,12 @@ func reviveHandler(message structs.Message) {
 	fmt.Println("Node " + portNo + " is now back up!")
 }
 
-func replicateHandler(repMsg structs.RepMsg, chunkServerIdx int) {
-	//time.Sleep(time.Second * 5)
+func replicateHandler(repMsg structs.RepMsg) {
 	repMsg.SetMessageType(helper.REP_DATA_REQUEST)
-	helper.SendRepMsg(repMsg, repMsg.Sources[chunkServerIdx])
+	for _, source := range repMsg.Sources {
+		helper.SendRepMsg(repMsg, source)
+		time.Sleep(helper.DEFAULT_TIMEOUT)
+	}
 }
 
 func repDataRequestHandler(repMsg structs.RepMsg) {
@@ -210,6 +214,15 @@ func repDataReplyHandler(repMsg structs.RepMsg) error {
 	dataDirPath := filepath.Join(pwd, "../"+helper.DATA_DIR)
 	portDirPath := filepath.Join(dataDirPath, strconv.Itoa(currentPort))
 	chunkPath := filepath.Join(portDirPath, chunkId+".txt")
+	payload := repMsg.Payload
+
+	if _, err := os.Stat(chunkPath); err == nil || payload == helper.NULL {
+		return nil
+	} else {
+		if !errors.Is(err, os.ErrNotExist) {
+			return errors.New("Some error with file !")
+		}
+	}
 
 	createChunk(repMsg.TargetCS, chunkId)
 	fh, err := os.OpenFile(chunkPath, os.O_WRONLY, 0777)
@@ -305,10 +318,10 @@ func filterContentBySW(content string, successfulWrites []structs.SuccessfulWrit
 func listen(nodePid int, portNo int) {
 
 	router := gin.New()
-    router.Use(
-        gin.LoggerWithWriter(gin.DefaultWriter, "/message", "/replicate", "/read", "/"),
-        gin.Recovery(),
-    )
+	router.Use(
+		gin.LoggerWithWriter(gin.DefaultWriter, "/message", "/replicate", "/read", "/"),
+		gin.Recovery(),
+	)
 	router.GET("/", landingPageHandler)
 	router.POST("/message", postMessageHandler)
 	router.POST("/replicate", repMessageHandler)
